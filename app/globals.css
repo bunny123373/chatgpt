@@ -4292,6 +4292,132 @@ html[data-theme="dark"] .tp-img-meta .bad { color: #ff8a80; }
   .tp-list .nm { max-width: 100%; }
 }
 
+/* Images -> PDF: reorderable page list */
+.tp-order { display: flex; flex-direction: column; gap: 10px; }
+.tp-order-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tp-order-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 11px;
+  background: var(--panel2);
+}
+.tp-order-list .n {
+  flex: 0 0 auto;
+  min-width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--bg);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.tp-order-list img {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 7px;
+  background: #fff;
+}
+.tp-order-list .nm {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tp-order-list .acts { display: flex; gap: 3px; flex: 0 0 auto; }
+.tp-order-list .acts button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+}
+.tp-order-list .acts button:hover:not(:disabled) { background: var(--panel); color: var(--text); }
+.tp-order-list .acts button:disabled { opacity: 0.3; cursor: default; }
+
+.tp-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.tp-check input { width: 17px; height: 17px; accent-color: var(--accent); }
+
+/* PDF -> images: page preview + thumbnail grid */
+.tp-pages { display: flex; flex-direction: column; gap: 12px; }
+.tp-note {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  background: var(--panel2);
+}
+.tp-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--panel2);
+}
+.tp-preview img {
+  max-width: 100%;
+  max-height: 52vh;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 6px;
+}
+.tp-thumbs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+.tp-thumb {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 5px;
+  border-radius: 10px;
+  border: 1.5px solid transparent;
+  background: var(--panel2);
+  transition: border-color 0.14s;
+}
+.tp-thumb:hover { border-color: var(--border2); }
+.tp-thumb.on { border-color: var(--accent); }
+.tp-thumb img {
+  width: 100%;
+  height: 92px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 5px;
+  display: block;
+}
+.tp-thumb span { font-size: 11px; color: var(--muted); }
+
 /* ------------------------- Tools page on phones -------------------------
    Key constraints: iOS zooms any focused field under 16px, so every input
    is forced to 16px here. Tap targets go to 44px, and long hashes/base64
@@ -4310,14 +4436,23 @@ html[data-theme="dark"] .tp-img-meta .bad { color: #ff8a80; }
 
   .tp-tabs {
     padding: 0 14px 10px;
-    /* Tabs scroll sideways instead of wrapping onto three rows. */
-    scroll-snap-type: x proximity;
-    -webkit-overflow-scrolling: touch;
+    /* A 3x2 grid of tiles so all six tabs are visible without sideways
+       scrolling — a horizontal strip only exposed two of them. */
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    overflow: visible;
   }
   .tp-tab {
-    min-height: 40px;
-    padding: 8px 14px;
-    scroll-snap-align: start;
+    min-height: 56px;
+    padding: 8px 6px;
+    flex-direction: column;
+    gap: 4px;
+    justify-content: center;
+    font-size: 12px;
+    line-height: 1.2;
+    text-align: center;
+    scroll-snap-align: none;
   }
 
   .tp-body {
@@ -4379,6 +4514,13 @@ html[data-theme="dark"] .tp-img-meta .bad { color: #ff8a80; }
   .tp-list .ms { overflow-wrap: anywhere; word-break: break-word; }
   .tp-stats span { font-size: 11px; }
   .tp-gen-img img { max-height: 44vh; }
+  .tp-preview img { max-height: 42vh; }
+  .tp-thumbs { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; }
+  .tp-thumb img { height: 76px; }
+  /* Bigger reorder buttons — these are the most-tapped control in this tool. */
+  .tp-order-list .acts button { width: 40px; height: 40px; font-size: 16px; }
+  .tp-order-list img { width: 46px; height: 46px; }
+  .tp-check { font-size: 14px; }
 }
 
 /* Very narrow phones (SE, small Androids) */
@@ -4386,7 +4528,7 @@ html[data-theme="dark"] .tp-img-meta .bad { color: #ff8a80; }
   .tp-body { padding: 12px 11px calc(18px + env(safe-area-inset-bottom)); }
   .tp-head { padding-left: 11px; padding-right: 11px; }
   .tp-tabs { padding-left: 11px; padding-right: 11px; }
-  .tp-tab { padding: 8px 11px; font-size: 13px; }
+  .tp-tab { padding: 8px 4px; font-size: 11px; min-height: 54px; }
   .tp-row { flex-wrap: wrap; }
   .tp-row > input, .tp-row > select { flex: 1 1 100%; }
   .tp-row > .tp-x { flex: 0 0 auto; }

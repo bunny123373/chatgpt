@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { CloseIcon, PdfIcon, ImageIcon, TemplateIcon, WrenchIcon, FileIcon, SearchIcon } from "./Icons";
 import { convertFileToPdf } from "@/lib/fileToPdf";
+import { downloadPage, downloadPages, pdfToImages, type PdfPage } from "@/lib/pdfToImages";
+import { filesToImages, printImagesPdf, type Orientation, type PageFit, type PageSize, type PdfImage } from "@/lib/imagesPdf";
 import {
   DEFAULT_EDIT,
   IMAGE_FORMATS,
@@ -56,12 +58,231 @@ const TABS: { id: Tab; label: string; icon: (p: { size?: number }) => ReactEleme
 
 /* ============================== PDF tools =============================== */
 
+type PdfDir = "imagesToPdf" | "toPdf" | "toImages";
+
+/** Pick several images, order them, and export them as one document. */
+function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
+  const [items, setItems] = useState<PdfImage[]>([]);
+  const [names, setNames] = useState<string[]>([]);
+  const [title, setTitle] = useState("Images");
+  const [size, setSize] = useState<PageSize>("A4");
+  const [orient, setOrient] = useState<Orientation>("portrait");
+  const [fit, setFit] = useState<PageFit>("contain");
+  const [margin, setMargin] = useState(12);
+  const [cover, setCover] = useState(false);
+  const [captions, setCaptions] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const ref = useRef<HTMLInputElement | null>(null);
+
+  const add = async (list: FileList | null) => {
+    if (!list?.length) return;
+    setBusy(true);
+    const added = await filesToImages(Array.from(list));
+    if (!added.length) {
+      setBusy(false);
+      return notify("None of those files were readable images");
+    }
+    setItems((prev) => [...prev, ...added]);
+    setNames((prev) => [...prev, ...Array.from(list).filter((f) => f.type.startsWith("image/")).map((f) => f.name)]);
+    setBusy(false);
+    notify(`Added ${added.length} image${added.length === 1 ? "" : "s"}`);
+  };
+
+  const move = (i: number, delta: number) =>
+    setItems((prev) => {
+      const next = [...prev];
+      const j = i + delta;
+      if (j < 0 || j >= next.length) return prev;
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+
+  const rotate = (i: number) =>
+    setItems((prev) => prev.map((it, k) => (k === i ? { ...it, rotate: ((it.rotate ?? 0) + 90) % 360 } : it)));
+
+  const totalBytes = useMemo(
+    () => items.reduce((sum, it) => sum + Math.floor(((it.url.length - it.url.indexOf(",")) * 3) / 4), 0),
+    [items],
+  );
+
+  const exportPdf = () => {
+    if (!items.length) return notify("Add at least one image");
+    const pages = items.map((it, i) => ({
+      url: it.url,
+      caption: captions ? (names[i] ?? "") : undefined,
+      // printImagesPdf handles placement; carry rotation through a wrapper.
+      rotate: it.rotate,
+    }));
+    const ok = printImagesPdf({
+      title: title.trim() || "Images",
+      images: pages,
+      pageSize: size,
+      orientation: orient,
+      fit,
+      marginMm: margin,
+      coverPage: cover,
+    });
+    notify(ok ? `${items.length} page${items.length === 1 ? "" : "s"} ready — choose Save as PDF` : "Allow pop-ups to export");
+  };
+
+  return (
+    <>
+      <input
+        ref={ref}
+        type="file"
+        multiple
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          void add(e.target.files);
+          e.target.value = "";
+        }}
+      />
+
+      <div className="tp-drop" onClick={() => ref.current?.click()} role="button" tabIndex={0}>
+        <ImageIcon size={26} />
+        <b>{busy ? "Reading images…" : items.length ? "Add more images" : "Choose images"}</b>
+        <small>Select as many as you like — they are combined into a single PDF, one page each.</small>
+      </div>
+
+      {items.length ? (
+        <>
+          <div className="tp-field">
+            <label>Document title</label>
+            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Images" />
+          </div>
+
+          <div className="tp-field">
+            <label>Page size</label>
+            <div className="tp-seg">
+              {(["A4", "Letter"] as const).map((s) => (
+                <button key={s} type="button" className={size === s ? "on" : ""} onClick={() => setSize(s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="tp-field">
+            <label>Orientation</label>
+            <div className="tp-seg">
+              {(["portrait", "landscape"] as const).map((o) => (
+                <button key={o} type="button" className={orient === o ? "on" : ""} onClick={() => setOrient(o)}>
+                  {o === "portrait" ? "Portrait" : "Landscape"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="tp-field">
+            <label>Image fit</label>
+            <div className="tp-seg">
+              <button type="button" className={fit === "contain" ? "on" : ""} onClick={() => setFit("contain")}>
+                Whole image
+              </button>
+              <button type="button" className={fit === "cover" ? "on" : ""} onClick={() => setFit("cover")}>
+                Fill page
+              </button>
+            </div>
+            <p className="tp-dim">
+              {fit === "contain" ? "Whole image visible, with empty space around it." : "Fills the page edge to edge, cropping the overflow."}
+            </p>
+          </div>
+
+          <div className="tp-field">
+            <label>Margin · {margin}mm</label>
+            <input type="range" min={0} max={30} value={margin} onChange={(e) => setMargin(Number(e.target.value))} />
+          </div>
+
+          <div className="tp-btns">
+            <label className="tp-check">
+              <input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} />
+              Show file names
+            </label>
+            <label className="tp-check">
+              <input type="checkbox" checked={cover} onChange={(e) => setCover(e.target.checked)} />
+              Add a title page
+            </label>
+          </div>
+
+          <div className="tp-order">
+            <div className="tp-out-head">
+              <b>
+                {items.length} page{items.length === 1 ? "" : "s"} · {formatBytes(totalBytes)}
+              </b>
+              <div className="tp-btns">
+                <button type="button" className="tp-btn primary sm" onClick={exportPdf}>
+                  Create PDF
+                </button>
+                <button type="button" className="tp-btn sm" onClick={() => setItems([])}>
+                  Remove all
+                </button>
+              </div>
+            </div>
+
+            <ul className="tp-order-list">
+              {items.map((it, i) => (
+                <li key={it.url.slice(-40) + i}>
+                  <span className="n">{i + 1}</span>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={it.url} alt="" />
+                  <span className="nm">{names[i] ?? "image"}</span>
+                  <span className="acts">
+                    <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => move(i, 1)}
+                      disabled={i === items.length - 1}
+                      aria-label="Move down"
+                    >
+                      ↓
+                    </button>
+                    <button type="button" onClick={() => rotate(i)} aria-label="Rotate 90°">
+                      ⟳
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setItems((prev) => prev.filter((_, k) => k !== i));
+                        setNames((prev) => prev.filter((_, k) => k !== i));
+                      }}
+                      aria-label="Remove"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      ) : null}
+    </>
+  );
+}
+
 function PdfTools({ notify }: { notify: (m: string) => void }) {
+  const [dir, setDir] = useState<PdfDir>("imagesToPdf");
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<{ name: string; ok: boolean; msg: string }[]>([]);
-  const pdfRef = useRef<HTMLInputElement | null>(null);
+  const [scale, setScale] = useState(2);
+  const [pages, setPages] = useState<PdfPage[]>([]);
+  const [pagesName, setPagesName] = useState("");
+  const [fallback, setFallback] = useState(false);
+  const [preview, setPreview] = useState<PdfPage | null>(null);
+  const toPdfRef = useRef<HTMLInputElement | null>(null);
+  const toImgRef = useRef<HTMLInputElement | null>(null);
 
-  const handle = useCallback(
+  // Release blob: URLs from the offline fallback when replacing them.
+  useEffect(() => {
+    return () => {
+      for (const p of pages) if (p.dataUrl.startsWith("blob:")) URL.revokeObjectURL(p.dataUrl);
+    };
+  }, [pages]);
+
+  const handleToPdf = useCallback(
     async (list: FileList | null) => {
       if (!list?.length) return;
       setBusy(true);
@@ -77,30 +298,157 @@ function PdfTools({ notify }: { notify: (m: string) => void }) {
     [notify],
   );
 
+  const handleToImages = useCallback(
+    async (file: File | undefined) => {
+      if (!file) return;
+      setBusy(true);
+      setPreview(null);
+      setPages([]);
+      const res = await pdfToImages(file, { scale });
+      setBusy(false);
+      if (!res.ok) {
+        setLog((prev) => [{ name: file.name, ok: false, msg: res.message }, ...prev]);
+        notify(res.message);
+        return;
+      }
+      setPages(res.pages);
+      setPagesName(file.name.replace(/\.[^.]+$/, "") || "document");
+      setFallback(res.fallback);
+      setPreview(res.pages[0] ?? null);
+      setLog((prev) => [{ name: file.name, ok: true, msg: res.message }, ...prev]);
+      notify(res.message);
+    },
+    [notify, scale],
+  );
+
   return (
     <div className="tp-col">
       <p className="tp-lede">
-        Turn anything into a PDF. Images get one page each, documents and text files are typeset into a paginated
-        document, and an existing PDF passes straight through. Everything runs in your browser.
+        Convert both ways. Build a PDF from images, documents or text — or turn a PDF back into page images. Everything
+        happens in your browser.
       </p>
 
-      <input
-        ref={pdfRef}
-        type="file"
-        multiple
-        accept=".pdf,.docx,image/*,.txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.html,.htm,.xml,.rtf,.log,text/*,application/pdf"
-        hidden
-        onChange={(e) => {
-          void handle(e.target.files);
-          e.target.value = "";
-        }}
-      />
-
-      <div className="tp-drop" onClick={() => pdfRef.current?.click()} role="button" tabIndex={0}>
-        <PdfIcon size={26} />
-        <b>{busy ? "Converting…" : "Choose files to convert"}</b>
-        <small>PDF · DOCX · images · TXT · MD · CSV · JSON · HTML · RTF and 30+ code formats</small>
+      <div className="tp-seg">
+        <button type="button" className={dir === "imagesToPdf" ? "on" : ""} onClick={() => setDir("imagesToPdf")}>
+          Images → PDF
+        </button>
+        <button type="button" className={dir === "toPdf" ? "on" : ""} onClick={() => setDir("toPdf")}>
+          File → PDF
+        </button>
+        <button type="button" className={dir === "toImages" ? "on" : ""} onClick={() => setDir("toImages")}>
+          PDF → images
+        </button>
       </div>
+
+      {dir === "imagesToPdf" ? <ImagesToPdf notify={notify} /> : null}
+
+      {dir === "toPdf" ? (
+        <>
+          <input
+            ref={toPdfRef}
+            type="file"
+            multiple
+            accept=".pdf,.docx,image/*,.txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.html,.htm,.xml,.rtf,.log,text/*,application/pdf"
+            hidden
+            onChange={(e) => {
+              void handleToPdf(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <div className="tp-drop" onClick={() => toPdfRef.current?.click()} role="button" tabIndex={0}>
+            <PdfIcon size={26} />
+            <b>{busy ? "Converting…" : "Choose files to convert to PDF"}</b>
+            <small>Images · DOCX · TXT · MD · CSV · JSON · HTML · RTF and 30+ code formats</small>
+          </div>
+        </>
+      ) : (
+        <>
+          <input
+            ref={toImgRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            hidden
+            onChange={(e) => {
+              void handleToImages(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          <div className="tp-field">
+            <label>Resolution · {scale}× ({scale * 72} dpi)</label>
+            <input type="range" min={1} max={4} step={1} value={scale} onChange={(e) => setScale(Number(e.target.value))} />
+          </div>
+          <div className="tp-drop" onClick={() => toImgRef.current?.click()} role="button" tabIndex={0}>
+            <ImageIcon size={26} />
+            <b>{busy ? "Rendering pages…" : "Choose a PDF to turn into images"}</b>
+            <small>Each page becomes a PNG. First run downloads the page renderer.</small>
+          </div>
+        </>
+      )}
+
+      {dir === "toImages" && pages.length ? (
+        <div className="tp-pages">
+          <div className="tp-out-head">
+            <b>
+              {pages.length} page{pages.length === 1 ? "" : "s"} from {pagesName}.pdf
+            </b>
+            <div className="tp-btns">
+              <button type="button" className="tp-btn primary sm" onClick={() => downloadPages(pages, pagesName)}>
+                Download all
+              </button>
+              <button
+                type="button"
+                className="tp-btn sm"
+                onClick={() => {
+                  for (const p of pages) if (p.dataUrl.startsWith("blob:")) URL.revokeObjectURL(p.dataUrl);
+                  setPages([]);
+                  setPreview(null);
+                }}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          {fallback ? (
+            <p className="tp-note">
+              The page renderer wasn&apos;t reachable, so these are the images embedded in the PDF. Text and vector
+              pages are not included. Go online and convert again for full pages.
+            </p>
+          ) : null}
+
+          {preview ? (
+            <div className="tp-preview">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={preview.dataUrl} alt={`Page ${preview.index}`} />
+              <div className="tp-btns">
+                <button type="button" className="tp-btn sm" onClick={() => downloadPage(preview, pagesName)}>
+                  Download page {preview.index}
+                </button>
+                {preview.width ? (
+                  <span className="tp-dim">
+                    {preview.width}×{preview.height}px
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="tp-thumbs">
+            {pages.map((p) => (
+              <button
+                key={p.index}
+                type="button"
+                className={`tp-thumb${preview?.index === p.index ? " on" : ""}`}
+                onClick={() => setPreview(p)}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.dataUrl} alt="" loading="lazy" />
+                <span>{p.index}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {log.length ? (
         <ul className="tp-list">
