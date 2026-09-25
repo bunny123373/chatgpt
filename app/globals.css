@@ -1099,7 +1099,8 @@ html[data-theme="dark"] .comp-btn.on {
   position: absolute;
   bottom: calc(100% + 10px);
   left: 0;
-  z-index: 59;
+  /* Must sit above .ratio-backdrop (58) or the backdrop eats every click. */
+  z-index: 60;
   min-width: 190px;
   padding: 4px 6px 6px;
   background: var(--panel2);
@@ -3450,7 +3451,8 @@ html[data-theme="light"] .doc-chip.err {
   position: absolute;
   bottom: calc(100% + 8px);
   right: 0;
-  z-index: 30;
+  /* Must sit above .ratio-backdrop (58) or the backdrop eats every click. */
+  z-index: 60;
   min-width: 232px;
   padding: 5px;
   border-radius: 12px;
@@ -3519,7 +3521,8 @@ html[data-theme="light"] .doc-chip.err {
   position: absolute;
   bottom: calc(100% + 8px);
   left: 8px;
-  z-index: 30;
+  /* Must sit above .ratio-backdrop (58) or the backdrop eats every click. */
+  z-index: 60;
   width: min(300px, calc(100vw - 24px));
   max-height: min(400px, 60vh);
   overflow-y: auto;
@@ -3589,7 +3592,8 @@ html[data-theme="light"] .doc-chip.err {
   position: absolute;
   bottom: calc(100% + 8px);
   left: 8px;
-  z-index: 30;
+  /* Must sit above .ratio-backdrop (58) or the backdrop eats every click. */
+  z-index: 60;
   width: min(320px, 74vw);
   max-height: 320px;
   overflow-y: auto;
