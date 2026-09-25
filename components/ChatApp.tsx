@@ -416,6 +416,12 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
             .map((m) => ({ role: m.role as "user" | "assistant", content: toContent(m) })),
         ];
 
+        // Batch web search: if search is on, we send the query as a single-element array
+        // (the API supports up to 5; future enhancement could split complex questions).
+        const queries = settings.search && history.length > 0
+          ? [history[history.length - 1]?.content?.trim()].filter(Boolean)
+          : undefined;
+
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: {
@@ -430,6 +436,7 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
             stream: true,
             search: settings.search,
             tools: settings.tools,
+            ...(queries ? { queries } : {}),
           }),
           signal: ac.signal,
         });

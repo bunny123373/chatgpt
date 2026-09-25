@@ -42,8 +42,15 @@ function msgText(m: InMsg): string {
  * Real web search via xKiro `POST /v1/search` (model `xkiro/web-search`),
  * used when the client enables the "search" toggle. Returns ranked,
  * structured results fed to the model with their source URLs.
+ * Supports batch: pass an array of up to 5 queries to search all at once.
  */
-async function webSearch(query: string, apiKey: string, baseUrl: string): Promise<string> {
+async function webSearch(
+  query: string | string[],
+  apiKey: string,
+  baseUrl: string
+): Promise<string> {
+  const queries = Array.isArray(query) ? query : [query];
+  if (queries.length === 0) return "";
   try {
     const r = await fetch(`${baseUrl}/search`, {
       method: "POST",
@@ -53,10 +60,10 @@ async function webSearch(query: string, apiKey: string, baseUrl: string): Promis
       },
       body: JSON.stringify({
         model: "xkiro/web-search",
-        query: query.slice(0, 300),
+        query: queries.map((q) => q.slice(0, 300)),
         max_results: 6,
       }),
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(15000),
     });
     if (!r.ok) return "";
     const data = (await r.json()) as {
@@ -69,8 +76,8 @@ async function webSearch(query: string, apiKey: string, baseUrl: string): Promis
         const snip = (res.snippet ?? "").trim();
         return `- ${title}${url ? ` (${url})` : ""}${snip ? `\n  ${snip}` : ""}`;
       })
-      .slice(0, 6);
-    return items.length ? `Web search results for "${query}":\n${items.join("\n")}` : "";
+      .slice(0, 6 * queries.length);
+    return items.length ? `Web search results:\n${items.join("\n")}` : "";
   } catch {
     return "";
   }
@@ -86,6 +93,8 @@ export async function POST(req: Request) {
     tools?: boolean;
     /** Ask for a short ChatGPT-style conversation title instead of a reply. */
     title?: boolean;
+    /** Batch web search: up to 5 queries in one request (xKiro supports array). */
+    queries?: string[];
   } = {};
   try {
     body = await req.json();
@@ -167,7 +176,12 @@ export async function POST(req: Request) {
   }
 
   const search = body.search === true && !useDemo;
-  const webContext = search && lastUserText ? await webSearch(lastUserText, apiKey, baseUrl) : "";
+  const batchQueries = Array.isArray(body.queries) && body.queries.length > 0 ? body.queries.slice(0, 5) : null;
+  const webContext = search && batchQueries
+    ? await webSearch(batchQueries, apiKey, baseUrl)
+    : search && lastUserText
+      ? await webSearch(lastUserText, apiKey, baseUrl)
+      : "";
   const chatMessages: InMsg[] = webContext
     ? [
         {

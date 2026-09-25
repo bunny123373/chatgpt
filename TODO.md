@@ -66,10 +66,10 @@ roadmap. ✅ = done, ⬜ = not yet (search the code for `TODO:` markers too).
 ## ⬜ TODO / roadmap
 
 ### High priority
-- [ ] **Streaming cancellation** — also cancel + refund-bill on the server when stop is pressed (needs upstream support; xKiro streaming is already SSE)
+- ✅ **Streaming cancellation** — Stop button now forwards `req.signal` to upstream xKiro fetch; aborting the client stream cancels the provider call (saves tokens/cost)
 
 ### Mid priority
-- [ ] **Batch web search** — xKiro `POST /v1/search` accepts query arrays (up to 5 searches in one request); use it for multi-part questions
+- ✅ **Batch web search** — xKiro `POST /v1/search` accepts query arrays (up to 5); client sends `queries` when search is on, server merges results into one context block for the model
 - [ ] **TTS polish** — emotion/volume picker for read-aloud (xKiro also supports `volume` and `emotion`); strip trailing "Code block:" phrasing for code-only replies
 - [ ] **Image editing** — reuse an attached image as the source for `POST /v1/images/edits`
 - [ ] **Token / cost estimate** per message and per conversation
