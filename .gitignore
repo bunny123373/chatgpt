@@ -35,6 +35,12 @@ yarn-error.log*
 # ...but always keep the placeholder template
 !.env.example
 
+# Firebase service-account credentials — NEVER commit these
+secrets/
+*service-account*.json
+*-firebase-adminsdk-*.json
+public/*service-account*.json
+
 # vercel
 .vercel
 
