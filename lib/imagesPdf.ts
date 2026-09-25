@@ -147,25 +147,48 @@ export function printImagesPdf(opts: PrintImagesOptions): boolean {
   ${pages}
 </body></html>`;
 
-  const win = window.open("", "_blank", "noopener,noreferrer,width=1000,height=1100");
+  // NOTE: do not pass `noopener` here. Per spec window.open() returns null when
+  // that feature is set, so we would lose the handle, never write the document
+  // and never call print() -- the user got a blank window that did nothing.
+  // We open a blank same-origin window and fill it ourselves, so there is no
+  // untrusted navigation to protect against; `win.opener = null` below still
+  // severs the reference for defence in depth.
+  const win = window.open("", "_blank", "width=1000,height=1100");
   if (!win) return false;
+  try {
+    win.opener = null;
+  } catch {
+    /* some engines make this read-only */
+  }
   win.document.open();
   win.document.write(doc);
   win.document.close();
 
-  // Wait for the images to decode before printing, otherwise pages can come out blank.
+  // Never print a document whose images failed to decode -- that is what
+  // produces blank pages. Bail out with a clear reason instead.
   const imgs = Array.from(win.document.images);
+  if (imgs.length !== opts.images.length) {
+    win.close();
+    return false;
+  }
+
   const ready = Promise.all(
     imgs.map(
       (im) =>
         new Promise<void>((resolve) => {
-          if (im.complete) return resolve();
+          if (im.complete && im.naturalWidth > 0) return resolve();
           im.onload = () => resolve();
           im.onerror = () => resolve();
         })
     )
   );
   void ready.then(() => {
+    // Belt and braces: if anything is still zero-width, do not print.
+    const broken = Array.from(win.document.images).filter((im) => im.naturalWidth === 0).length;
+    if (broken > 0) {
+      win.close();
+      return;
+    }
     win.setTimeout(() => {
       try {
         win.focus();

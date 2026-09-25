@@ -200,19 +200,33 @@ export function printTextPdf(opts: { title: string; body: string; source: string
   </footer>
 </body></html>`;
 
-  const win = window.open("", "_blank", "noopener,noreferrer,width=900,height=1100");
+  // `noopener` makes window.open() return null per spec, which loses the handle
+  // and leaves a blank window that never prints. We fill the window ourselves,
+  // so sever the opener reference explicitly instead.
+  const win = window.open("", "_blank", "width=900,height=1100");
   if (!win) return false;
+  try {
+    win.opener = null;
+  } catch {
+    /* some engines make this read-only */
+  }
   win.document.open();
   win.document.write(doc);
   win.document.close();
-  win.setTimeout(() => {
+
+  // Wait for load rather than a fixed delay, so nothing is cut off mid-paint.
+  const fire = () => {
     try {
       win.focus();
       win.print();
     } catch {
       /* user can print manually */
     }
-  }, 300);
+  };
+  if (win.document.readyState === "complete") win.setTimeout(fire, 150);
+  else win.addEventListener("load", () => win.setTimeout(fire, 150), { once: true });
+  // Safety net in case the load event never arrives.
+  win.setTimeout(fire, 1200);
   return true;
 }
 

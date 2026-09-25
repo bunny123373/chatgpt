@@ -178,7 +178,11 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
       marginMm: margin,
       coverPage: cover,
     });
-    notify(ok ? `${items.length} page${items.length === 1 ? "" : "s"} ready — choose Save as PDF` : "Allow pop-ups to export");
+    notify(
+      ok
+        ? `${items.length} page${items.length === 1 ? "" : "s"} ready — choose Save as PDF`
+        : "Couldn't open the print window. Allow pop-ups for this site, then try again.",
+    );
   };
 
   return (
