@@ -3605,31 +3605,44 @@ html[data-theme="light"] .doc-chip.err {
   animation: acct-pop 0.12s ease;
 }
 
-/* Composer popovers on phones: full-width, keyboard-safe, bigger tap targets. */
+/* Composer popovers on phones: centred, keyboard-safe, bigger tap targets. */
 @media (max-width: 620px) {
-  /* Nudge the popovers right, off the composer's left edge. Raise for more. */
+  /* acct-pop ends on `transform: none`, which would cancel the -50% centring
+     mid-animation and snap the menu off to the right. Keep the X shift. */
+  @keyframes pop-center {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  }
   .tools-menu,
-  .tpl-menu {
-    left: var(--pop-shift, 30px);
-    right: 0;
-    width: auto;
+  .tpl-menu,
+  .mode-menu,
+  .ratio-menu {
+    /* Centre on the composer without changing the vertical anchor. */
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    animation: pop-center 0.12s ease;
     /* dvh tracks the visual viewport, so the on-screen keyboard shrinks it. */
     max-height: min(46dvh, 340px);
+    overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
   }
+  .tools-menu,
+  .tpl-menu {
+    width: min(300px, calc(100vw - 20px));
+  }
   .mode-menu {
-    /* Already flush right, so it can't shift further without overflowing. */
-    left: auto;
-    right: 0;
     width: min(260px, calc(100vw - 20px));
-    max-height: min(46dvh, 340px);
-    overflow-y: auto;
   }
   .ratio-menu {
-    left: var(--pop-shift, 30px);
-    max-height: min(46dvh, 340px);
-    overflow-y: auto;
+    width: min(190px, calc(100vw - 20px));
   }
   /* Comfortable touch targets (WCAG 2.5.5). */
   .plus-btn,
