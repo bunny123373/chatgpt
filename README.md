@@ -1,8 +1,9 @@
 # Next AI — Next.js
 
 A ChatGPT-style AI chat app built with the Next.js App Router. Streaming answers, Markdown
-rendering, persistent chat history, model switching, theming, and an offline demo mode that
-works with zero configuration.
+rendering, persistent chat history, model switching, theming, and tool use against a real
+OpenAI-compatible endpoint. There is no offline or canned mode — every answer comes from a
+live model.
 
 ## Features
 
@@ -12,7 +13,7 @@ works with zero configuration.
 - **Markdown rendering** — headings, lists, tables, blockquotes, inline code, and fenced code blocks with a language label, a copy button, and light syntax highlighting. Zero Markdown dependencies.
 - **Chat history** — conversations are created, titled, renamed, searched, and deleted; all state lives in `localStorage`.
 - **Model picker** — GPT-4o, GPT-4o mini, GPT-4.1, o4-mini, or any custom model id.
-- **Offline demo mode** — no API key? The built-in demo engine streams canned but context-aware replies so every part of the UI stays testable.
+- **Real answers only** — with no API key configured the server returns a `503` explaining what is missing. Nothing is ever faked or canned.
 - **Dark / light theme**, responsive layout with a collapsible sidebar, stop-generation, regenerate, and copy.
 - **Keyboard shortcuts** — `Enter` send, `Shift+Enter` newline, `Ctrl/Cmd+Shift+O` new chat, `Ctrl/Cmd+Shift+S` settings, `Esc` close menus.
 - **Real authentication (optional)** — Firebase Auth sign-in with Google or GitHub. Each account gets its own isolated chats/settings; sign out to switch users. Runs anonymously when Firebase isn't configured.
@@ -21,7 +22,7 @@ works with zero configuration.
 
 ```bash
 npm install
-cp .env.example .env.local     # optional — add XKIRO_API_KEY, or skip and use demo mode
+cp .env.example .env.local     # add XKIRO_API_KEY — required, there is no offline mode
 npm run dev
 ```
 
@@ -109,7 +110,6 @@ Notes:
 │   ├── SettingsModal.tsx    # API key, base URL, model, temperature, voice, account
 │   └── Sidebar.tsx          # conversation list, search, rename, delete
 ├── lib/
-│   ├── demo.ts              # offline canned response engine
 │   ├── firebase.ts          # lazy Firebase Auth bootstrap (env-config aware)
 │   ├── markdown.ts          # dependency-free Markdown → HTML renderer
 │   ├── speech.ts            # read-aloud: xKiro neural TTS + browser fallback
@@ -123,14 +123,14 @@ Notes:
 
 1. The client POSTs the message history to `/api/chat`.
 2. The route handler calls `<baseUrl>/chat/completions` with `stream: true` and pipes the upstream SSE body straight back to the browser.
-3. The client splits the stream on `\n\n`, parses each `data:` frame, and appends `choices[0].delta.content` (or `delta` in demo mode) to the last assistant message.
+3. The client splits the stream on `\n\n`, parses each `data:` frame, and appends `choices[0].delta.content` to the last assistant message.
 
 Because the request goes through your own server route, the key can stay server-side and CORS is never an issue.
 
 ## Notes
 
 - Conversations are capped at 200 in `localStorage`; adjust in `lib/store.ts`.
-- The demo engine is keyword-routed (`lib/demo.ts`) — it is a UI fallback, not a language model.
+- If the server has no API key, `/api/chat` returns `503` with a setup hint rather than falling back to anything fake.
 - Never commit `.env.local`.
 
 ## License

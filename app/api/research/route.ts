@@ -69,7 +69,7 @@ export async function POST(req: Request) {
   const question = (body.question || "").trim();
   if (!question) return Response.json({ error: "A question is required." }, { status: 400 });
 
-  const model = body.model && body.model !== "demo" ? body.model : "qwen/qwen3.5-flash:free";
+  const model = body.model || "qwen/qwen3.5-flash:free";
   const apiKey = (body.apiKey || "").trim() || process.env.XKIRO_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || "";
   const baseUrl = (
     body.baseUrl?.trim() || process.env.XKIRO_BASE_URL?.trim() || "https://api.xkiro.com/v1"

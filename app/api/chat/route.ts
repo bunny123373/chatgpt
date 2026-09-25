@@ -1,4 +1,3 @@
-import { demoReply } from "@/lib/demo";
 import { runTool, TOOL_DEFS } from "@/lib/tools";
 
 export const runtime = "nodejs";
@@ -26,8 +25,6 @@ const enc = new TextEncoder();
 function sse(payload: unknown): Uint8Array {
   return enc.encode(`data: ${JSON.stringify(payload)}\n\n`);
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Extract plain text from a message whose content may include image parts. */
 function msgText(m: InMsg): string {
@@ -135,14 +132,20 @@ export async function POST(req: Request) {
     "https://api.xkiro.com/v1"
   ).replace(/\/+$/, "");
 
-  const useDemo = !apiKey || model === "demo";
+  // Real service only: no key means a clear error, never a canned answer.
+  if (!apiKey) {
+    return Response.json(
+      { error: "No API key is configured on the server. Set XKIRO_API_KEY and restart." },
+      { status: 503 },
+    );
+  }
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
   const lastUserText = lastUser ? msgText(lastUser).trim() : "";
 
   // ---- Title generation: a short 2-5 word name for the conversation ----
   if (body.title === true) {
     const source = lastUserText.slice(0, 1200);
-    if (useDemo || !source) return Response.json({ title: "" });
+    if (!source) return Response.json({ title: "" });
     try {
       const r = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
@@ -183,7 +186,7 @@ export async function POST(req: Request) {
     return Response.json({ title: "" });
   }
 
-  const search = body.search === true && !useDemo;
+  const search = body.search === true;
   const batchQueries = Array.isArray(body.queries) && body.queries.length > 0 ? body.queries.slice(0, 5) : null;
   const webContext = search && batchQueries
     ? await webSearch(batchQueries, apiKey, baseUrl)
@@ -211,7 +214,7 @@ export async function POST(req: Request) {
   // Ask the model once, non-streaming, with the tool definitions. If it wants
   // to call tools, execute them and stream the final answer with the results.
   // If it answers directly, stream that text instead of calling upstream again.
-  const wantsTools = body.tools === true && !useDemo;
+  const wantsTools = body.tools === true;
   let toolsUsed: string[] = [];
   let finalMessages = chatMessages;
   let presetAnswer = "";
@@ -287,18 +290,6 @@ export async function POST(req: Request) {
           /* already closed */
         }
       };
-
-      if (useDemo) {
-        const text = demoReply(lastUserText, messages);
-        const chunks = text.match(/[\s\S]{1,4}/g) ?? [];
-        for (const chunk of chunks) {
-          controller.enqueue(sse({ delta: chunk }));
-          await sleep(12);
-        }
-        controller.enqueue(enc.encode("data: [DONE]\n\n"));
-        close();
-        return;
-      }
 
       // Stream a non-tool answer produced by the pre-pass without a 2nd call.
       if (presetAnswer) {

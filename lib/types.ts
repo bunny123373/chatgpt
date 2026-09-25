@@ -245,8 +245,6 @@ export const MODELS: ModelInfo[] = [
   { id: "openai/gpt-5.6-sol", name: "GPT-5.6 Sol", desc: "OpenAI flagship", tag: "OpenAI" },
   { id: "anthropic/claude-sonnet-5", name: "Claude Sonnet 5", desc: "Anthropic flagship", tag: "Anthropic" },
   { id: "google/gemini-3.8-flash", name: "Gemini 3.8 Flash", desc: "Google speed model", tag: "Google" },
-
-  { id: "demo", name: "GPT-2.0 Demo (offline)", desc: "No API key needed — local canned engine", tag: "Offline" },
 ];
 
 export const DEFAULT_SETTINGS: Settings = {

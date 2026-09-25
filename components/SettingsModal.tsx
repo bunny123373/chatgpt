@@ -191,7 +191,7 @@ export default function SettingsModal({
                     type="password"
                     autoComplete="off"
                     spellCheck={false}
-                    placeholder="sk-… (leave empty for offline demo)"
+                    placeholder="sk-… (optional — falls back to the server key)"
                     value={settings.apiKey}
                     onChange={(e) => set("apiKey", e.target.value)}
                   />

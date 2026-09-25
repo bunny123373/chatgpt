@@ -978,10 +978,7 @@ export default function ChatApp({
         } else {
           errored = true;
           const message = err instanceof Error ? err.message : "Unknown error";
-          const hint = settings.apiKey.trim()
-            ? ""
-            : "\n\nTip: no API key is set, so offline demo mode was requested — if you see this, the demo route failed.";
-          acc = (acc ? acc + "\n\n" : "") + `⚠️ ${message}${hint}`;
+          acc = (acc ? acc + "\n\n" : "") + `⚠️ ${message}`;
         }
       } finally {
         const finalText = acc;
@@ -1547,8 +1544,6 @@ export default function ChatApp({
     setModelMenu((v) => !v);
   };
 
-  const usingDemo = !settings.apiKey.trim() || settings.model === "demo";
-
   return (
     <div className="app">
       <div className="sb-backdrop" onClick={() => (document.documentElement.dataset.sidebar = "closed")} />
@@ -1676,7 +1671,6 @@ export default function ChatApp({
                     setSettings((s) => ({ ...s, model: m.id }));
                     if (active) patchChat(active.id, (c) => ({ ...c, model: m.id, updatedAt: Date.now() }));
                     setModelMenu(false);
-                    if (m.id === "demo") notify("Switched to offline demo mode");
                   }}
                 >
                   <span className="mi-t">
@@ -1708,10 +1702,7 @@ export default function ChatApp({
           {messages.length === 0 ? (
             <div className="welcome">
               <h1>How can I help today?</h1>
-              <p>
-                Next AI — streaming answers, Markdown, and chat history saved in your browser.
-                {usingDemo ? " Running in offline demo mode until you add an API key." : ""}
-              </p>
+              <p>Next AI — streaming answers, Markdown, and chat history saved in your browser.</p>
               <div className="cards">
                 {SUGGESTIONS.map((s) => (
                   <button key={s.title} type="button" className="card" onClick={() => send(s.prompt)}>
