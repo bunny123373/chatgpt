@@ -14,6 +14,7 @@ import {
   ResearchIcon,
   TemplateIcon,
   PlusIcon,
+  PdfIcon,
 } from "./Icons";
 import { IMAGE_RATIOS, RATIO_OUTPUT, type FileRef, type ImageRatio, type ResponseMode } from "@/lib/types";
 
@@ -31,6 +32,8 @@ interface Props {
   onFiles: (files: FileRef[]) => void;
   /** Raw files the user just picked; the parent parses them. */
   onFilesAttach: (picked: File[]) => void;
+  /** Convert a picked file to PDF and open the print dialog. */
+  onConvertPdf: (file: File) => void;
   /** True while documents are being parsed. */
   filesBusy: boolean;
   searching: boolean;
@@ -74,6 +77,7 @@ export default function Composer({
   onFiles,
   onFilesAttach,
   filesBusy,
+  onConvertPdf,
   searching,
   onToggleSearch,
   tools,
@@ -94,6 +98,7 @@ export default function Composer({
 }: Props) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const pdfRef = useRef<HTMLInputElement | null>(null);
   const [sizing, setSizing] = useState(0);
   const [imgError, setImgError] = useState(false);
   const [ratioOpen, setRatioOpen] = useState(false);
@@ -403,6 +408,17 @@ export default function Composer({
               }}
             />
             <input
+              ref={pdfRef}
+              type="file"
+              accept=".pdf,.docx,image/*,.txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.html,.htm,.xml,.rtf,.log,text/*,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onConvertPdf(f);
+                e.target.value = "";
+              }}
+            />
+            <input
               ref={docRef}
               type="file"
               multiple
@@ -518,6 +534,22 @@ export default function Composer({
                     <span className="tm-text">
                       <b>Upload files</b>
                       <small>PDF, DOCX, CSV, text and code</small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setToolsOpen(false);
+                      pdfRef.current?.click();
+                    }}
+                  >
+                    <span className="tm-ic">
+                      <PdfIcon size={16} />
+                    </span>
+                    <span className="tm-text">
+                      <b>Convert to PDF</b>
+                      <small>Turn a document, image or text file into a PDF</small>
                     </span>
                   </button>
                   <button

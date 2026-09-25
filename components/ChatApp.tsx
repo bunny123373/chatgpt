@@ -5,6 +5,7 @@ import Composer from "./Composer";
 import Canvas from "./Canvas";
 import { useSandbox, parseCsv, coerceRows } from "@/lib/sandbox";
 import { printChat } from "@/lib/printChat";
+import { convertFileToPdf } from "@/lib/fileToPdf";
 import Library from "./Library";
 import MessageRow from "./MessageRow";
 import SettingsModal from "./SettingsModal";
@@ -280,6 +281,13 @@ export default function ChatApp({
       model: active.model ?? settings.model,
     });
     if (!ok) notify("Allow pop-ups to export as PDF");
+  }
+
+  /* ---------- file -> pdf ---------- */
+  async function convertToPdf(file: File) {
+    notify(`Converting ${file.name}…`);
+    const res = await convertFileToPdf(file);
+    notify(res.message);
   }
 
   /* ---------- chat tags ---------- */
@@ -1775,6 +1783,7 @@ export default function ChatApp({
           files={pendingFiles}
           onFiles={setPendingFiles}
           onFilesAttach={(picked) => void attachFiles(picked)}
+      onConvertPdf={(file) => void convertToPdf(file)}
           filesBusy={filesBusy}
           mode={settings.mode}
           onModeChange={(m) => setSettings((s) => ({ ...s, mode: m }))}

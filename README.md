@@ -13,6 +13,7 @@ live model.
 - **Markdown rendering** — headings, lists, tables, blockquotes, inline code, and fenced code blocks with a language label, a copy button, and light syntax highlighting. Zero Markdown dependencies.
 - **Chat history** — conversations are created, titled, renamed, searched, and deleted; all state lives in `localStorage`.
 - **Model picker** — GPT-4o, GPT-4o mini, GPT-4.1, o4-mini, or any custom model id.
+- **Convert anything to PDF** — a tool in the composer's `+` menu turns an uploaded file into a PDF: images get one page each, DOCX and text/code files are typeset into a paginated document, and an existing PDF is passed straight through. Print-window based, so no PDF library is needed.
 - **Real answers only** — with no API key configured the server returns a `503` explaining what is missing. Nothing is ever faked or canned.
 - **Dark / light theme**, responsive layout with a collapsible sidebar, stop-generation, regenerate, and copy.
 - **Keyboard shortcuts** — `Enter` send, `Shift+Enter` newline, `Ctrl/Cmd+Shift+O` new chat, `Ctrl/Cmd+Shift+S` settings, `Esc` close menus.
@@ -110,8 +111,11 @@ Notes:
 │   ├── SettingsModal.tsx    # API key, base URL, model, temperature, voice, account
 │   └── Sidebar.tsx          # conversation list, search, rename, delete
 ├── lib/
+│   ├── fileToPdf.ts         # any uploaded file → PDF (images, DOCX, text, code)
 │   ├── firebase.ts          # lazy Firebase Auth bootstrap (env-config aware)
+│   ├── imagesPdf.ts         # images → PDF, one image per page
 │   ├── markdown.ts          # dependency-free Markdown → HTML renderer
+│   ├── printChat.ts         # export a conversation as a PDF
 │   ├── speech.ts            # read-aloud: xKiro neural TTS + browser fallback
 │   ├── store.ts             # per-account localStorage load / save helpers
 │   └── types.ts             # shared types, model list, defaults
