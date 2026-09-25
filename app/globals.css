@@ -3604,6 +3604,48 @@ html[data-theme="light"] .doc-chip.err {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
   animation: acct-pop 0.12s ease;
 }
+
+/* Composer popovers on phones: full-width, keyboard-safe, bigger tap targets. */
+@media (max-width: 620px) {
+  .tools-menu,
+  .tpl-menu {
+    left: 0;
+    right: 0;
+    width: auto;
+    /* dvh tracks the visual viewport, so the on-screen keyboard shrinks it. */
+    max-height: min(46dvh, 340px);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mode-menu {
+    left: auto;
+    right: 0;
+    width: min(260px, calc(100vw - 20px));
+    max-height: min(46dvh, 340px);
+    overflow-y: auto;
+  }
+  .ratio-menu {
+    max-height: min(46dvh, 340px);
+    overflow-y: auto;
+  }
+  /* Comfortable touch targets (WCAG 2.5.5). */
+  .plus-btn,
+  .field .comp-btn {
+    width: 40px;
+    height: 40px;
+  }
+  .tools-menu > button {
+    padding: 11px 10px;
+  }
+  .tm-ic {
+    width: 30px;
+    height: 30px;
+  }
+  /* Room for the iOS home indicator. */
+  .composer-wrap {
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+}
 .tpl-empty {
   padding: 10px 8px 12px;
   font-size: 12.5px;
