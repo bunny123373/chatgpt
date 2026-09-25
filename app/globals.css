@@ -4134,6 +4134,7 @@ html[data-theme="dark"] .tp-list li.bad .ms { color: #ff8a80; }
 .tp-btn:disabled { opacity: 0.45; cursor: default; }
 .tp-btn.sm { padding: 6px 10px; font-size: 12.5px; border-radius: 8px; }
 .tp-btn.primary { background: var(--send-bg); color: #fff; border-color: transparent; }
+.tp-btn svg { flex: 0 0 auto; }
 html[data-theme="dark"] .tp-btn.primary { color: #0f0f0f; }
 .tp-btn.primary:hover:not(:disabled) { opacity: 0.88; background: var(--send-bg); }
 .tp-btns { display: flex; flex-wrap: wrap; gap: 6px; }

@@ -5,7 +5,8 @@ import Composer from "./Composer";
 import Canvas from "./Canvas";
 import { useSandbox, parseCsv, coerceRows } from "@/lib/sandbox";
 import { printChat } from "@/lib/printChat";
-import { convertFileToPdf } from "@/lib/fileToPdf";
+import { convertFileToPdf, convertFileToPdfBlob } from "@/lib/fileToPdf";
+import { buildTextPdf, downloadBlob, pdfFilename } from "@/lib/pdfWriter";
 import Library from "./Library";
 import ToolsPage from "./ToolsPage";
 import MessageRow from "./MessageRow";
@@ -284,11 +285,41 @@ export default function ChatApp({
     if (!ok) notify("Allow pop-ups to export as PDF");
   }
 
+  /** Direct .pdf download, which is the only reliable path on phones. */
+  function downloadChatPdf() {
+    if (!active) return notify("Nothing to export yet");
+    const who = (r: string) => (r === "user" ? settings.nickname.trim() || "You" : "Next AI");
+    const sections = active.messages.map((m) => ({
+      heading: who(m.role),
+      paragraphs: String(m.content ?? "")
+        .split(/\n{2,}/)
+        .map((p) => p.trim())
+        .filter(Boolean),
+    }));
+    if (!sections.length) return notify("Nothing to export yet");
+    const blob = buildTextPdf({
+      title: active.title || "Conversation",
+      subtitle: `${active.messages.length} message${active.messages.length === 1 ? "" : "s"} - ${active.model ?? settings.model}`,
+      sections,
+    });
+    downloadBlob(blob, pdfFilename(active.title || "conversation"));
+    notify("PDF downloaded");
+  }
+
   /* ---------- file -> pdf ---------- */
   async function convertToPdf(file: File) {
     notify(`Converting ${file.name}…`);
-    const res = await convertFileToPdf(file);
-    notify(res.message);
+    // Direct download works on phones, where the print dialog hides
+    // "Save as PDF" behind a share sheet.
+    const res = await convertFileToPdfBlob(file);
+    if (res.ok && res.blob && res.filename) {
+      downloadBlob(res.blob, res.filename);
+      notify(res.message);
+      return;
+    }
+    // Fall back to the print route if the blob build failed.
+    const fallback = await convertFileToPdf(file);
+    notify(fallback.ok ? "Opened the print dialog — choose Save as PDF" : fallback.message);
   }
 
   /* ---------- chat tags ---------- */
@@ -1657,6 +1688,15 @@ export default function ChatApp({
               onClick={exportPdf}
             >
               <FileIcon size={16} />
+            </button>
+            <button
+              className="icon-btn"
+              type="button"
+              title="Download chat as PDF (no print dialog)"
+              aria-label="Download chat as PDF"
+              onClick={downloadChatPdf}
+            >
+              <DownloadIcon size={16} />
             </button>
             <button
               className="icon-btn"

@@ -233,10 +233,19 @@ export function filesToImages(files: File[]): Promise<PdfImage[]> {
  *    because a transform is painted *after* layout and so does not change the
  *    box the image occupies — rotated pages drifted and got clipped.
  */
+export interface PreparedImage {
+  /** JPEG (or small PNG) data URL ready to embed. */
+  url: string;
+  caption: string;
+  /** Intrinsic pixel size, needed by the PDF writer for /Width and /Height. */
+  width: number;
+  height: number;
+}
+
 export async function prepareImageForPdf(
   file: File,
   opts: { maxEdge?: number; rotate?: number; quality?: number } = {}
-): Promise<PdfImage | null> {
+): Promise<PreparedImage | null> {
   const maxEdge = opts.maxEdge ?? 2200;
   const rotate = ((opts.rotate ?? 0) % 360 + 360) % 360;
   const quality = opts.quality ?? 0.92;
@@ -286,5 +295,5 @@ export async function prepareImageForPdf(
   // PNG keeps small images crisp and preserves transparency.
   const useJpeg = cw * dh > 400_000;
   const dataUrl = canvas.toDataURL(useJpeg ? "image/jpeg" : "image/png", quality);
-  return { url: dataUrl, caption: file.name, rotate: 0 };
+  return { url: dataUrl, caption: file.name, width: cw, height: ch };
 }

@@ -2,9 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { CloseIcon, PdfIcon, ImageIcon, TemplateIcon, WrenchIcon, FileIcon, SearchIcon } from "./Icons";
-import { convertFileToPdf } from "@/lib/fileToPdf";
+import { convertFileToPdf, convertFileToPdfBlob } from "@/lib/fileToPdf";
 import { downloadPage, downloadPages, pdfToImages, type PdfPage } from "@/lib/pdfToImages";
-import { prepareImageForPdf, printImagesPdf, type Orientation, type PageFit, type PageSize, type PdfImage } from "@/lib/imagesPdf";
+import {
+  prepareImageForPdf,
+  printImagesPdf,
+  type Orientation,
+  type PageFit,
+  type PageSize,
+  type PdfImage,
+  type PreparedImage,
+} from "@/lib/imagesPdf";
+import { buildImagePdf, buildTextPdf, downloadBlob, pdfFilename } from "@/lib/pdfWriter";
+import { DownloadIcon } from "./Icons";
 import {
   DEFAULT_EDIT,
   IMAGE_FORMATS,
@@ -62,7 +72,7 @@ type PdfDir = "imagesToPdf" | "toPdf" | "toImages";
 
 /** Pick several images, order them, and export them as one document. */
 function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
-  const [items, setItems] = useState<PdfImage[]>([]);
+  const [items, setItems] = useState<PreparedImage[]>([]);
   const [names, setNames] = useState<string[]>([]);
   const [rot, setRot] = useState<number[]>([]);
   const [title, setTitle] = useState("Images");
@@ -81,7 +91,7 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
     if (!files.length) return notify("None of those files were images");
 
     setProgress({ done: 0, total: files.length });
-    const added: PdfImage[] = [];
+    const added: PreparedImage[] = [];
     const addedNames: string[] = [];
     const addedRot: number[] = [];
     let skipped = 0;
@@ -131,7 +141,9 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
     ctx.rotate((next * Math.PI) / 180);
     ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
     const url = canvas.toDataURL("image/jpeg", 0.92);
-    setItems((prev) => prev.map((it, k) => (k === index ? { ...it, url, rotate: 0 } : it)));
+    setItems((prev) =>
+      prev.map((it, k) => (k === index ? { ...it, url, width: canvas.width, height: canvas.height } : it))
+    );
   };
 
   const move = (i: number, delta: number) => {
@@ -169,6 +181,35 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
 
   const exportPdf = () => {
     if (!items.length) return notify("Add at least one image");
+    // Direct download: a real .pdf file, so it works the same on phones and
+    // desktops with no print dialog in the way.
+    const blob = buildImagePdf(
+      items.map((it, i) => ({
+        dataUrl: it.url,
+        width: it.width,
+        height: it.height,
+        caption: names[i] ?? "",
+      })),
+      {
+        title: title.trim() || "Images",
+        pageSize: size,
+        orientation: orient,
+        fit,
+        margin,
+        coverPage: cover,
+        showCaptions: captions,
+      },
+    );
+    if (!blob) {
+      notify("Couldn't build the PDF. Try re-adding the images.");
+      return;
+    }
+    downloadBlob(blob, pdfFilename(title.trim() || "images"));
+    notify(`Downloaded ${items.length} page${items.length === 1 ? "" : "s"}`);
+  };
+
+  const printPdf = () => {
+    if (!items.length) return notify("Add at least one image");
     const ok = printImagesPdf({
       title: title.trim() || "Images",
       images: items.map((it, i) => (captions ? { ...it, caption: names[i] ?? it.caption } : { ...it, caption: undefined })),
@@ -178,11 +219,7 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
       marginMm: margin,
       coverPage: cover,
     });
-    notify(
-      ok
-        ? `${items.length} page${items.length === 1 ? "" : "s"} ready — choose Save as PDF`
-        : "Couldn't open the print window. Allow pop-ups for this site, then try again.",
-    );
+    notify(ok ? "Print dialog opened" : "Couldn't open the print window. Allow pop-ups and try again.");
   };
 
   return (
@@ -284,7 +321,11 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
               </b>
               <div className="tp-btns">
                 <button type="button" className="tp-btn primary sm" onClick={exportPdf}>
-                  Create PDF
+                  <DownloadIcon size={15} />
+                  Download PDF
+                </button>
+                <button type="button" className="tp-btn sm" onClick={printPdf}>
+                  Print…
                 </button>
                 <button
                   type="button"
@@ -360,13 +401,19 @@ function PdfTools({ notify }: { notify: (m: string) => void }) {
       if (!list?.length) return;
       setBusy(true);
       const next: typeof log = [];
+      // Direct download rather than a print dialog: on phones the print
+      // route buries "Save as PDF" behind a share sheet.
       for (const file of Array.from(list)) {
-        const res = await convertFileToPdf(file);
+        const res = await convertFileToPdfBlob(file);
+        if (res.ok && res.blob && res.filename) {
+          downloadBlob(res.blob, res.filename);
+        }
         next.push({ name: file.name, ok: res.ok, msg: res.message });
       }
       setLog((prev) => [...next, ...prev]);
       setBusy(false);
-      notify(next.some((n) => n.ok) ? "PDF ready — choose Save as PDF" : next[0]?.msg || "Nothing converted");
+      const okCount = next.filter((n) => n.ok).length;
+      notify(okCount ? `Downloaded ${okCount} PDF${okCount === 1 ? "" : "s"}` : next[0]?.msg || "Nothing converted");
     },
     [notify],
   );
@@ -431,7 +478,7 @@ function PdfTools({ notify }: { notify: (m: string) => void }) {
           <div className="tp-drop" onClick={() => toPdfRef.current?.click()} role="button" tabIndex={0}>
             <PdfIcon size={26} />
             <b>{busy ? "Converting…" : "Choose files to convert to PDF"}</b>
-            <small>Images · DOCX · TXT · MD · CSV · JSON · HTML · RTF and 30+ code formats</small>
+            <small>Downloads a .pdf straight to your device — no print dialog.</small>
           </div>
         </>
       ) : (

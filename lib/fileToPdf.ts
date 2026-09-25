@@ -15,7 +15,8 @@
  *   .html / .rtf       → tags and control words stripped, then typeset
  */
 
-import { filesToImages, printImagesPdf } from "./imagesPdf";
+import { filesToImages, prepareImageForPdf, printImagesPdf } from "./imagesPdf";
+import { buildImagePdf, buildTextPdf, type TextSection } from "./pdfWriter";
 
 const MAX_BYTES = 8 * 1024 * 1024; // matches the chat upload limit
 
@@ -311,6 +312,149 @@ export async function convertFileToPdf(file: File): Promise<ConvertResult> {
       return opened
         ? { ok: true, message: `${file.name} ready to save as PDF` }
         : { ok: false, message: "The browser blocked the print window. Allow pop-ups and try again." };
+    }
+
+    return {
+      ok: false,
+      message: `${file.name} (${file.type || "unknown type"}) can't be converted. Try PDF, DOCX, an image, or a text file.`,
+    };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : `Could not convert ${file.name}.` };
+  }
+}
+
+/* --------------------- direct download (no print dialog) ------------------ */
+
+/** Convert the plain-text typeset() understands into PDF sections. */
+function toSections(text: string): TextSection[] {
+  const lines = text.split(/\r?\n/);
+  const sections: TextSection[] = [];
+  let para: string[] = [];
+  let inCode = false;
+  let code: string[] = [];
+
+  const flushPara = () => {
+    if (para.length) {
+      sections.push({ paragraphs: para });
+      para = [];
+    }
+  };
+  const flushCode = () => {
+    if (code.length) {
+      sections.push({ paragraphs: [], code: code.join(" ") });
+      code = [];
+    }
+  };
+
+  for (const raw of lines) {
+    if (/^\s*(```|~~~)/.test(raw)) {
+      if (inCode) flushCode();
+      else flushPara();
+      inCode = !inCode;
+      continue;
+    }
+    if (inCode) {
+      // One line per section keeps it inside the page width.
+      if (raw.trim()) {
+        flushCode();
+        code.push(raw);
+      }
+      continue;
+    }
+    if (!raw.trim()) {
+      flushPara();
+      continue;
+    }
+    const h = raw.match(/^(#{1,6})\s+(.*)$/);
+    if (h) {
+      flushPara();
+      sections.push({ heading: h[2], paragraphs: [] });
+      continue;
+    }
+    if (/^\s*[-*+]\s+/.test(raw) || /^\s*\d+[.)]\s+/.test(raw)) {
+      flushPara();
+      sections.push({ paragraphs: [`\u2022 ${raw.replace(/^\s*([-*+]|\d+[.)])\s+/, "")}`] });
+      continue;
+    }
+    if (raw.startsWith(">")) {
+      flushPara();
+      sections.push({ paragraphs: [raw.replace(/^\s*>\s?/, "")] });
+      continue;
+    }
+    if (/^\s*(import |export |const |let |var |function |class |def |return |if \(|for \(|#include|public |private )/.test(raw)) {
+      flushPara();
+      flushCode();
+      sections.push({ paragraphs: [], code: raw });
+      continue;
+    }
+    para.push(raw);
+  }
+  flushPara();
+  flushCode();
+  return sections;
+}
+
+export interface PdfBlobResult {
+  ok: boolean;
+  blob?: Blob;
+  filename?: string;
+  message: string;
+}
+
+/**
+ * Build a real .pdf file for direct download, bypassing the print dialog.
+ *
+ * This is the path that works on phones: iOS buries "Save as PDF" inside the
+ * share sheet, whereas an <a download> saves straight to Files.
+ */
+export async function convertFileToPdfBlob(file: File): Promise<PdfBlobResult> {
+  if (file.size > MAX_BYTES) {
+    return { ok: false, message: `${file.name} is larger than 8 MB.` };
+  }
+  const base = baseName(file.name);
+
+  try {
+    // Already a PDF: hand back the original bytes untouched.
+    if (file.type === "application/pdf" || ext(file.name) === ".pdf") {
+      return {
+        ok: true,
+        blob: new Blob([new Uint8Array(await file.arrayBuffer())], { type: "application/pdf" }),
+        filename: `${base}.pdf`,
+        message: `Downloaded ${base}.pdf`,
+      };
+    }
+
+    if (file.type.startsWith("image/")) {
+      const prepped = await prepareImageForPdf(file);
+      if (!prepped) return { ok: false, message: `Could not read ${file.name} as an image.` };
+      const blob = buildImagePdf(
+        [{ dataUrl: prepped.url, width: prepped.width, height: prepped.height }],
+        { title: base, coverPage: false }
+      );
+      if (!blob) return { ok: false, message: "Couldn't build a PDF from that image." };
+      return { ok: true, blob, filename: `${base}.pdf`, message: `Downloaded ${base}.pdf` };
+    }
+
+    if (ext(file.name) === ".docx" || file.type.includes("wordprocessingml")) {
+      const text = await docxText(file);
+      const blob = buildTextPdf({
+        title: base,
+        subtitle: `Converted from DOCX \u00b7 ${new Date().toLocaleString()}`,
+        sections: toSections(text),
+      });
+      return { ok: true, blob, filename: `${base}.pdf`, message: `Downloaded ${base}.pdf` };
+    }
+
+    if (file.type.startsWith("text/") || TEXT_EXT.test(file.name) || !file.type) {
+      const raw = await readAsText(file);
+      const text = ext(file.name) === ".rtf" ? stripRtf(raw) : /\.(html?|xml)$/i.test(file.name) ? stripHtml(raw) : raw;
+      if (!text.trim()) return { ok: false, message: `${file.name} looks empty.` };
+      const blob = buildTextPdf({
+        title: base,
+        subtitle: `Converted from ${file.name} \u00b7 ${new Date().toLocaleString()}`,
+        sections: toSections(text),
+      });
+      return { ok: true, blob, filename: `${base}.pdf`, message: `Downloaded ${base}.pdf` };
     }
 
     return {
