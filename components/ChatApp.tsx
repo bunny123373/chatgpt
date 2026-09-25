@@ -7,6 +7,7 @@ import { useSandbox, parseCsv, coerceRows } from "@/lib/sandbox";
 import { printChat } from "@/lib/printChat";
 import { convertFileToPdf } from "@/lib/fileToPdf";
 import Library from "./Library";
+import ToolsPage from "./ToolsPage";
 import MessageRow from "./MessageRow";
 import SettingsModal from "./SettingsModal";
 import Sidebar from "./Sidebar";
@@ -570,6 +571,7 @@ export default function ChatApp({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"general" | "voice" | "profile" | "projects" | "data" | "account">("general");
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -1579,6 +1581,7 @@ export default function ChatApp({
           setSettingsOpen(true);
         }}
         onOpenLibrary={() => setLibraryOpen(true)}
+        onOpenTools={() => setToolsOpen(true)}
         onOpenLogin={onOpenLogin}
         authAvailable={authAvailable}
       />
@@ -1594,6 +1597,17 @@ export default function ChatApp({
         onRename={(id, title) => patchChat(id, (c) => ({ ...c, title }))}
         onImport={importChats}
       />
+
+      {toolsOpen ? (
+        <ToolsPage
+          onClose={() => setToolsOpen(false)}
+          notify={notify}
+          model={settings.model}
+          apiKey={settings.apiKey.trim()}
+          baseUrl={settings.baseUrl}
+          signedIn={Boolean(profile)}
+        />
+      ) : null}
 
       <main className="main">
         <div className="topbar">

@@ -9,6 +9,7 @@ import {
   LogOutIcon,
   MoreIcon,
   LibraryIcon,
+  WrenchIcon,
   LogInIcon,
   ImageIcon,
   CloseIcon,
@@ -47,6 +48,8 @@ interface Props {
   /** Open Settings directly on the Profile section. */
   onEditProfile?: () => void;
   onOpenLibrary?: () => void;
+  /** Opens the standalone Tools page (PDF, image, text, calculators, data, generate). */
+  onOpenTools?: () => void;
   /** Opens the optional sign-in modal (undefined when Firebase isn't configured). */
   onOpenLogin?: () => void;
   /** False when Firebase isn't configured — hides the "Log in" affordance. */
@@ -86,6 +89,7 @@ export default function Sidebar({
   onOpenSettings,
   onEditProfile,
   onOpenLibrary,
+  onOpenTools,
   onOpenLogin,
   authAvailable = true,
 }: Props) {
@@ -359,6 +363,16 @@ export default function Sidebar({
           <span>Create image</span>
         </button>
       </div>
+
+      {/* Standalone tools, independent of the chat thread. */}
+      {onOpenTools ? (
+        <div className="sb-nav">
+          <button className="sb-nav-item" type="button" onClick={onOpenTools}>
+            <WrenchIcon />
+            <span>Tools</span>
+          </button>
+        </div>
+      ) : null}
 
       {/* History is account-scoped, so it's only shown once signed in. */}
       {user ? (
