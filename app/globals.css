@@ -3607,9 +3607,10 @@ html[data-theme="light"] .doc-chip.err {
 
 /* Composer popovers on phones: full-width, keyboard-safe, bigger tap targets. */
 @media (max-width: 620px) {
+  /* Nudge the popovers right, off the composer's left edge. Raise for more. */
   .tools-menu,
   .tpl-menu {
-    left: 0;
+    left: var(--pop-shift, 30px);
     right: 0;
     width: auto;
     /* dvh tracks the visual viewport, so the on-screen keyboard shrinks it. */
@@ -3618,6 +3619,7 @@ html[data-theme="light"] .doc-chip.err {
     -webkit-overflow-scrolling: touch;
   }
   .mode-menu {
+    /* Already flush right, so it can't shift further without overflowing. */
     left: auto;
     right: 0;
     width: min(260px, calc(100vw - 20px));
@@ -3625,6 +3627,7 @@ html[data-theme="light"] .doc-chip.err {
     overflow-y: auto;
   }
   .ratio-menu {
+    left: var(--pop-shift, 30px);
     max-height: min(46dvh, 340px);
     overflow-y: auto;
   }
