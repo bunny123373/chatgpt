@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import { CloseIcon, PdfIcon, ImageIcon, TemplateIcon, WrenchIcon, FileIcon, SearchIcon } from "./Icons";
 import { convertFileToPdf } from "@/lib/fileToPdf";
 import { downloadPage, downloadPages, pdfToImages, type PdfPage } from "@/lib/pdfToImages";
-import { filesToImages, printImagesPdf, type Orientation, type PageFit, type PageSize, type PdfImage } from "@/lib/imagesPdf";
+import { prepareImageForPdf, printImagesPdf, type Orientation, type PageFit, type PageSize, type PdfImage } from "@/lib/imagesPdf";
 import {
   DEFAULT_EDIT,
   IMAGE_FORMATS,
@@ -64,6 +64,7 @@ type PdfDir = "imagesToPdf" | "toPdf" | "toImages";
 function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
   const [items, setItems] = useState<PdfImage[]>([]);
   const [names, setNames] = useState<string[]>([]);
+  const [rot, setRot] = useState<number[]>([]);
   const [title, setTitle] = useState("Images");
   const [size, setSize] = useState<PageSize>("A4");
   const [orient, setOrient] = useState<Orientation>("portrait");
@@ -71,24 +72,69 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
   const [margin, setMargin] = useState(12);
   const [cover, setCover] = useState(false);
   const [captions, setCaptions] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const ref = useRef<HTMLInputElement | null>(null);
 
   const add = async (list: FileList | null) => {
     if (!list?.length) return;
-    setBusy(true);
-    const added = await filesToImages(Array.from(list));
-    if (!added.length) {
-      setBusy(false);
-      return notify("None of those files were readable images");
+    const files = Array.from(list).filter((f) => f.type.startsWith("image/"));
+    if (!files.length) return notify("None of those files were images");
+
+    setProgress({ done: 0, total: files.length });
+    const added: PdfImage[] = [];
+    const addedNames: string[] = [];
+    const addedRot: number[] = [];
+    let skipped = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      // Sequential on purpose: decoding ten 12 MP photos at once thrashes memory.
+      const prepped = await prepareImageForPdf(files[i]);
+      setProgress({ done: i + 1, total: files.length });
+      if (prepped) {
+        added.push(prepped);
+        addedNames.push(files[i].name);
+        addedRot.push(0);
+      } else skipped++;
     }
+
+    setProgress(null);
+    if (!added.length) return notify("None of those images could be read");
     setItems((prev) => [...prev, ...added]);
-    setNames((prev) => [...prev, ...Array.from(list).filter((f) => f.type.startsWith("image/")).map((f) => f.name)]);
-    setBusy(false);
-    notify(`Added ${added.length} image${added.length === 1 ? "" : "s"}`);
+    setNames((prev) => [...prev, ...addedNames]);
+    setRot((prev) => [...prev, ...addedRot]);
+    notify(skipped ? `Added ${added.length}, skipped ${skipped} unreadable` : `Added ${added.length} image${added.length === 1 ? "" : "s"}`);
   };
 
-  const move = (i: number, delta: number) =>
+  /** Re-render one page with a new baked-in rotation. */
+  const applyRotation = async (index: number, delta: number) => {
+    const src = items[index];
+    if (!src) return;
+    const next = (rot[index] + delta + 360) % 360;
+    setRot((prev) => prev.map((r, k) => (k === index ? next : r)));
+
+    // Re-decode from the already-prepared bitmap for a sharp result.
+    const canvas = document.createElement("canvas");
+    const img = new Image();
+    img.src = src.url;
+    try {
+      await img.decode();
+    } catch {
+      return;
+    }
+    const quarter = next === 90 || next === 270;
+    canvas.width = quarter ? img.naturalHeight : img.naturalWidth;
+    canvas.height = quarter ? img.naturalWidth : img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.imageSmoothingQuality = "high";
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate((next * Math.PI) / 180);
+    ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+    const url = canvas.toDataURL("image/jpeg", 0.92);
+    setItems((prev) => prev.map((it, k) => (k === index ? { ...it, url, rotate: 0 } : it)));
+  };
+
+  const move = (i: number, delta: number) => {
     setItems((prev) => {
       const next = [...prev];
       const j = i + delta;
@@ -96,9 +142,25 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
       [next[i], next[j]] = [next[j], next[i]];
       return next;
     });
+    setNames((prev) => {
+      const next = [...prev];
+      const j = i + delta;
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+    setRot((prev) => {
+      const next = [...prev];
+      const j = i + delta;
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  };
 
-  const rotate = (i: number) =>
-    setItems((prev) => prev.map((it, k) => (k === i ? { ...it, rotate: ((it.rotate ?? 0) + 90) % 360 } : it)));
+  const removeAt = (i: number) => {
+    setItems((prev) => prev.filter((_, k) => k !== i));
+    setNames((prev) => prev.filter((_, k) => k !== i));
+    setRot((prev) => prev.filter((_, k) => k !== i));
+  };
 
   const totalBytes = useMemo(
     () => items.reduce((sum, it) => sum + Math.floor(((it.url.length - it.url.indexOf(",")) * 3) / 4), 0),
@@ -107,15 +169,9 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
 
   const exportPdf = () => {
     if (!items.length) return notify("Add at least one image");
-    const pages = items.map((it, i) => ({
-      url: it.url,
-      caption: captions ? (names[i] ?? "") : undefined,
-      // printImagesPdf handles placement; carry rotation through a wrapper.
-      rotate: it.rotate,
-    }));
     const ok = printImagesPdf({
       title: title.trim() || "Images",
-      images: pages,
+      images: items.map((it, i) => (captions ? { ...it, caption: names[i] ?? it.caption } : { ...it, caption: undefined })),
       pageSize: size,
       orientation: orient,
       fit,
@@ -139,10 +195,22 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
         }}
       />
 
-      <div className="tp-drop" onClick={() => ref.current?.click()} role="button" tabIndex={0}>
+      <div
+        className="tp-drop"
+        onClick={() => !progress && ref.current?.click()}
+        role="button"
+        tabIndex={0}
+        aria-busy={Boolean(progress)}
+      >
         <ImageIcon size={26} />
-        <b>{busy ? "Reading images…" : items.length ? "Add more images" : "Choose images"}</b>
-        <small>Select as many as you like — they are combined into a single PDF, one page each.</small>
+        <b>{progress ? `Preparing ${progress.done} / ${progress.total}…` : items.length ? "Add more images" : "Choose images"}</b>
+        {progress ? (
+          <div className="tp-prog">
+            <div className="tp-prog-bar" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} />
+          </div>
+        ) : (
+          <small>Select as many as you like — they are combined into a single PDF, one page each.</small>
+        )}
       </div>
 
       {items.length ? (
@@ -214,7 +282,15 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
                 <button type="button" className="tp-btn primary sm" onClick={exportPdf}>
                   Create PDF
                 </button>
-                <button type="button" className="tp-btn sm" onClick={() => setItems([])}>
+                <button
+                  type="button"
+                  className="tp-btn sm"
+                  onClick={() => {
+                    setItems([]);
+                    setNames([]);
+                    setRot([]);
+                  }}
+                >
                   Remove all
                 </button>
               </div>
@@ -239,17 +315,10 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
                     >
                       ↓
                     </button>
-                    <button type="button" onClick={() => rotate(i)} aria-label="Rotate 90°">
+                    <button type="button" onClick={() => void applyRotation(i, 90)} aria-label="Rotate 90 degrees">
                       ⟳
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setItems((prev) => prev.filter((_, k) => k !== i));
-                        setNames((prev) => prev.filter((_, k) => k !== i));
-                      }}
-                      aria-label="Remove"
-                    >
+                    <button type="button" onClick={() => removeAt(i)} aria-label="Remove">
                       ✕
                     </button>
                   </span>

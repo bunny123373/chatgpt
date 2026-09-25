@@ -4292,6 +4292,20 @@ html[data-theme="dark"] .tp-img-meta .bad { color: #ff8a80; }
   .tp-list .nm { max-width: 100%; }
 }
 
+.tp-prog {
+  width: min(240px, 70%);
+  height: 5px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.tp-prog-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.15s linear;
+}
+
 /* Images -> PDF: reorderable page list */
 .tp-order { display: flex; flex-direction: column; gap: 10px; }
 .tp-order-list {

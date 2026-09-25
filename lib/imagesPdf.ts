@@ -194,3 +194,74 @@ export function filesToImages(files: File[]): Promise<PdfImage[]> {
       )
   ).then((list) => list.filter((i) => i.url));
 }
+
+/**
+ * Fast path for turning a picked image into a print page.
+ *
+ * Three things make this quicker than handing the raw file to the print
+ * window:
+ *
+ *  - `createImageBitmap` decodes off the main thread and honours the EXIF
+ *    orientation flag, so phone photos come out upright automatically.
+ *  - Oversized images are downscaled to `maxEdge` (≈200 dpi across an A4
+ *    page). A 12 MP phone photo is ~48 MB as base64; capped it is well under
+ *    1 MB, which is what made the old path crawl.
+ *  - Rotation is baked into the canvas instead of applied as a CSS transform,
+ *    because a transform is painted *after* layout and so does not change the
+ *    box the image occupies — rotated pages drifted and got clipped.
+ */
+export async function prepareImageForPdf(
+  file: File,
+  opts: { maxEdge?: number; rotate?: number; quality?: number } = {}
+): Promise<PdfImage | null> {
+  const maxEdge = opts.maxEdge ?? 2200;
+  const rotate = ((opts.rotate ?? 0) % 360 + 360) % 360;
+  const quality = opts.quality ?? 0.92;
+
+  let bitmap: ImageBitmap;
+  let w: number;
+  let h: number;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    w = bitmap.width;
+    h = bitmap.height;
+  } catch {
+    // Safari < 15 and some older engines lack the options bag.
+    try {
+      bitmap = await createImageBitmap(file);
+      w = bitmap.width;
+      h = bitmap.height;
+    } catch {
+      return null;
+    }
+  }
+
+  const quarter = rotate === 90 || rotate === 270;
+  const scale = Math.min(1, maxEdge / Math.max(w, h));
+  const dw = Math.max(1, Math.round(w * scale));
+  const dh = Math.max(1, Math.round(h * scale));
+  // After a quarter turn the drawn dimensions swap.
+  const cw = quarter ? dh : dw;
+  const ch = quarter ? dw : dh;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = cw;
+  canvas.height = ch;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    bitmap.close?.();
+    return null;
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.translate(cw / 2, ch / 2);
+  ctx.rotate((rotate * Math.PI) / 180);
+  ctx.drawImage(bitmap, -dw / 2, -dh / 2, dw, dh);
+  bitmap.close?.();
+
+  // JPEG for anything sizeable — much smaller and plenty for print.
+  // PNG keeps small images crisp and preserves transparency.
+  const useJpeg = cw * dh > 400_000;
+  const dataUrl = canvas.toDataURL(useJpeg ? "image/jpeg" : "image/png", quality);
+  return { url: dataUrl, caption: file.name, rotate: 0 };
+}
