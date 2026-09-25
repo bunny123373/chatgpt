@@ -1958,7 +1958,8 @@ html[data-theme="light"] .btn.danger {
   border-radius: 11px;
   padding: 10px 18px;
   font-size: 13.5px;
-  z-index: 120;
+  /* Must stay above .tools-page (200) so confirmations remain visible. */
+  z-index: 300;
   box-shadow: var(--shadow);
   opacity: 0;
   transition: all 0.3s;
@@ -3099,7 +3100,8 @@ html[data-theme="light"] .auth-err {
 .auth-overlay {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  /* Above .tools-page (200) so sign-in still works from the Tools page. */
+  z-index: 260;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4288,4 +4290,116 @@ html[data-theme="dark"] .tp-img-meta .bad { color: #ff8a80; }
   .tp-head { padding: 12px 14px 8px; }
   .tp-tabs { padding: 0 14px 10px; }
   .tp-list .nm { max-width: 100%; }
+}
+
+/* ------------------------- Tools page on phones -------------------------
+   Key constraints: iOS zooms any focused field under 16px, so every input
+   is forced to 16px here. Tap targets go to 44px, and long hashes/base64
+   must wrap rather than force a horizontal scrollbar.                  */
+@media (max-width: 620px) {
+  .tools-page {
+    /* dvh tracks the collapsing URL bar; 100% is the fallback. */
+    height: 100%;
+    height: 100dvh;
+  }
+  .tp-head {
+    padding: max(10px, env(safe-area-inset-top)) 14px 8px;
+  }
+  .tp-head h1 { font-size: 18px; }
+  .tp-close { width: 40px; height: 40px; }
+
+  .tp-tabs {
+    padding: 0 14px 10px;
+    /* Tabs scroll sideways instead of wrapping onto three rows. */
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tp-tab {
+    min-height: 40px;
+    padding: 8px 14px;
+    scroll-snap-align: start;
+  }
+
+  .tp-body {
+    padding: 14px 14px calc(20px + env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tp-col { gap: 14px; }
+  .tp-lede { font-size: 13px; }
+
+  /* 16px minimum stops iOS zooming in on focus. */
+  .tp-field input,
+  .tp-field select,
+  .tp-card input,
+  .tp-card select,
+  .tp-io textarea,
+  .tp-io-out textarea,
+  .tp-prompt {
+    font-size: 16px;
+  }
+  /* .tp-code carries !important, so it needs overriding here or iOS zooms. */
+  .tp-io textarea.tp-code { font-size: 15px !important; }
+  .tp-field input[type="number"],
+  .tp-field input[type="text"],
+  .tp-field select,
+  .tp-card input,
+  .tp-card select { min-height: 44px; }
+
+  .tp-btn { min-height: 44px; padding: 10px 15px; }
+  .tp-btn.sm { min-height: 40px; padding: 8px 12px; }
+  .tp-seg { width: 100%; }
+  .tp-seg button { flex: 1 1 auto; min-height: 40px; padding: 8px 10px; }
+
+  .tp-drop { padding: 34px 16px; }
+  .tp-drop b { font-size: 14.5px; }
+
+  /* Stack the file name above its result so neither gets squeezed. */
+  .tp-list li { flex-direction: column; gap: 3px; }
+  .tp-list .nm { max-width: 100%; }
+
+  /* Stacked panes: shorter, so the page is not an endless scroll. */
+  .tp-io textarea { min-height: 150px; max-height: 34vh; }
+  .tp-io-mid textarea { min-height: 170px; }
+  .tp-io-out textarea { min-height: 170px; }
+
+  .tp-img { gap: 14px; }
+  .tp-img-side { gap: 14px; }
+  .tp-img-main { min-height: 200px; padding: 12px; }
+  .tp-img-main img { max-height: 44vh; }
+  .tp-img-meta { font-size: 12px; gap: 9px; }
+
+  /* auto-fit with a 0 floor so it never overflows a narrow screen. */
+  .tp-cards { grid-template-columns: 1fr; }
+
+  /* Long hashes and base64 must not widen the page. */
+  .tp-result,
+  .tp-io textarea,
+  .tp-io-out textarea,
+  .tp-list .ms { overflow-wrap: anywhere; word-break: break-word; }
+  .tp-stats span { font-size: 11px; }
+  .tp-gen-img img { max-height: 44vh; }
+}
+
+/* Very narrow phones (SE, small Androids) */
+@media (max-width: 400px) {
+  .tp-body { padding: 12px 11px calc(18px + env(safe-area-inset-bottom)); }
+  .tp-head { padding-left: 11px; padding-right: 11px; }
+  .tp-tabs { padding-left: 11px; padding-right: 11px; }
+  .tp-tab { padding: 8px 11px; font-size: 13px; }
+  .tp-row { flex-wrap: wrap; }
+  .tp-row > input, .tp-row > select { flex: 1 1 100%; }
+  .tp-row > .tp-x { flex: 0 0 auto; }
+  .tp-card { padding: 13px; }
+  .tp-btns .tp-btn { flex: 1 1 auto; }
+}
+
+/* Landscape phones: the vertical space is the scarce resource. */
+@media (max-height: 480px) and (orientation: landscape) {
+  .tp-head { padding-top: max(6px, env(safe-area-inset-top)); padding-bottom: 4px; }
+  .tp-head h1 { font-size: 16px; }
+  .tp-tabs { padding-bottom: 6px; }
+  .tp-body { padding-top: 10px; }
+  .tp-io textarea { min-height: 110px; max-height: 40vh; }
+  .tp-img-main img { max-height: 52vh; }
 }
