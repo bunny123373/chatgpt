@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { BUBBLE_COLORS, DEFAULT_SETTINGS, MODELS, type AuthUser, type Settings } from "@/lib/types";
-import { BackIcon } from "./Icons";
+import { useEffect, useRef, useState } from "react";
+import { BUBBLE_COLORS, DEFAULT_SETTINGS, MODELS, type AuthUser, type Project, type Settings } from "@/lib/types";
+import { BackIcon, TrashIcon } from "./Icons";
 
 interface Props {
   open: boolean;
@@ -15,16 +15,29 @@ interface Props {
   /** Signed-in account (null in anonymous mode — hides the sign-out row). */
   user?: AuthUser | null;
   onSignOut?: () => void;
+  /** Project workspace management. */
+  projects?: Project[];
+  onProjects?: (next: Project[]) => void;
+  onDeleteProject?: (id: string) => void;
+  onNewProjectChat?: (projectId: string) => void;
+  /** Persist the display name / photo to the sign-in provider. */
+  onSyncProfile?: (displayName: string, photoDataUrl: string | null) => Promise<void>;
+  /** Open on a specific section (e.g. "profile" from the account menu). */
+  openTab?: TabId;
 }
 
-type TabId = "general" | "voice" | "data" | "account";
+type TabId = "general" | "voice" | "profile" | "projects" | "data" | "account";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "general", label: "General" },
   { id: "voice", label: "Voice" },
+  { id: "profile", label: "Profile" },
+  { id: "projects", label: "Projects" },
   { id: "data", label: "Data controls" },
   { id: "account", label: "Account" },
 ];
+
+const newProjectId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
 export default function SettingsModal({
   open,
@@ -36,14 +49,73 @@ export default function SettingsModal({
   onClearAll,
   user,
   onSignOut,
+  projects = [],
+  onProjects,
+  onDeleteProject,
+  onNewProjectChat,
+  onSyncProfile,
+  openTab = "general",
 }: Props) {
   const [tab, setTab] = useState<TabId>("general");
   const [voices, setVoices] = useState<{ id: string; name: string }[]>([]);
+  const [draftName, setDraftName] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const avatarInput = useRef<HTMLInputElement | null>(null);
 
-  // ChatGPT-style: changes apply live — start each open on General.
+  // Custom avatar if set, otherwise the provider's photo.
+  const avatarPreview = settings.avatar || user?.image || "";
+  const initials = (settings.profileName.trim() || user?.name || "?").trim()[0].toUpperCase();
+
+  /** Downscale to a square JPEG so localStorage stays small. */
+  const pickAvatar = async (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.onerror = () => reject(new Error("read failed"));
+        fr.readAsDataURL(file);
+      });
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const im = new Image();
+        im.onload = () => resolve(im);
+        im.onerror = () => reject(new Error("decode failed"));
+        im.src = dataUrl;
+      });
+      const size = 256;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("no canvas");
+      // Centre-crop to a square, then draw.
+      const side = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+      set("avatar", canvas.toDataURL("image/jpeg", 0.82));
+    } catch {
+      /* ignore unreadable images */
+    }
+  };
+
+  const setProjects = (next: Project[]) => onProjects?.(next);
+  const createProject = () => {
+    const name = draftName.trim();
+    if (!name) return;
+    const p: Project = { id: newProjectId(), name, instructions: "", createdAt: Date.now(), updatedAt: Date.now() };
+    setProjects([p, ...projects]);
+    setDraftName("");
+  };
+  const patchProject = (id: string, fn: (p: Project) => Project) =>
+    setProjects(projects.map((p) => (p.id === id ? fn(p) : p)));
+  const deleteProject = (id: string) => {
+    setProjects(projects.filter((p) => p.id !== id));
+    onDeleteProject?.(id);
+  };
+
+  // ChatGPT-style: changes apply live — land on the requested section.
   useEffect(() => {
-    if (open) setTab("general");
-  }, [open]);
+    if (open) setTab(openTab);
+  }, [open, openTab]);
 
   // Load the premium xKiro TTS voices for the read-aloud voice picker.
   useEffect(() => {
@@ -198,6 +270,35 @@ export default function SettingsModal({
                   <input id="nick" type="text" value={settings.nickname} onChange={(e) => set("nickname", e.target.value)} />
                 </div>
 
+                <div className="set-row col">
+                  <label htmlFor="instr" className="set-label">
+                    Custom instructions
+                  </label>
+                  <textarea
+                    id="instr"
+                    value={settings.instructions}
+                    placeholder="e.g. I'm a React developer. Always answer with TypeScript examples and keep answers concise."
+                    onChange={(e) => set("instructions", e.target.value)}
+                  />
+                  <p className="help">
+                    Applied to every conversation — Next AI will keep these preferences in mind until you change or clear them.
+                  </p>
+                </div>
+
+                <div className="set-row">
+                  <span className="set-label">
+                    Show token &amp; cost
+                    <small>Display tokens used and the estimated USD cost under each reply.</small>
+                  </span>
+                  <button
+                    type="button"
+                    className={`toggle${settings.showUsage ? " on" : ""}`}
+                    aria-label="Toggle token and cost display"
+                    aria-pressed={settings.showUsage}
+                    onClick={() => set("showUsage", !settings.showUsage)}
+                  />
+                </div>
+
                 <div className="set-row">
                   <span className="set-label">
                     Streaming responses
@@ -305,6 +406,179 @@ export default function SettingsModal({
                   />
                   <p className="help">Applies to both xKiro neural voices and the browser fallback.</p>
                 </div>
+              </>
+            ) : null}
+
+            {tab === "profile" ? (
+              <>
+                <h3 className="set-heading">Profile</h3>
+                <p className="set-desc">Your photo and names. Only the display name is shown in the app.</p>
+
+                <div className="prof-top">
+                  <div className="prof-av" aria-hidden>
+                    {avatarPreview ? <img src={avatarPreview} alt="" /> : <span>{initials}</span>}
+                  </div>
+                  <div className="prof-av-actions">
+                    <label className="btn file-btn">
+                      {avatarPreview ? "Change photo" : "Upload photo"}
+                      <input
+                        ref={avatarInput}
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = "";
+                          if (f) void pickAvatar(f);
+                        }}
+                      />
+                    </label>
+                    {avatarPreview ? (
+                      <button type="button" className="btn" onClick={() => set("avatar", "")}>
+                        Remove
+                      </button>
+                    ) : null}
+                    <p className="prof-hint">Square images work best. Stored in this browser only.</p>
+                  </div>
+                </div>
+
+                <div className="set-row col">
+                  <label htmlFor="dispName" className="set-label">
+                    Display name
+                  </label>
+                  <input
+                    id="dispName"
+                    type="text"
+                    maxLength={60}
+                    placeholder={user?.name || "How you appear in the app"}
+                    value={settings.profileName}
+                    onChange={(e) => set("profileName", e.target.value)}
+                  />
+                  <p className="help">Shown next to your chats and in the sidebar. Falls back to your account name.</p>
+                </div>
+
+                <div className="set-row col">
+                  <label htmlFor="realName" className="set-label">
+                    Real name
+                  </label>
+                  <input
+                    id="realName"
+                    type="text"
+                    maxLength={60}
+                    placeholder="Your first and last name"
+                    value={settings.realName}
+                    onChange={(e) => set("realName", e.target.value)}
+                  />
+                  <p className="help">Kept private — never displayed in conversations or exports.</p>
+                </div>
+
+                {user?.email ? (
+                  <div className="set-row col">
+                    <span className="set-label">Email</span>
+                    <p className="prof-email">{user.email}</p>
+                  </div>
+                ) : null}
+
+                {onSyncProfile ? (
+                  <div className="set-row">
+                    <span className="set-label">
+                      Sync to your account
+                      <small>Save the display name and photo to your sign-in provider so they follow you to other devices.</small>
+                    </span>
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={syncing}
+                      onClick={async () => {
+                        setSyncing(true);
+                        try {
+                          await onSyncProfile(settings.profileName.trim() || settings.realName.trim(), settings.avatar || null);
+                        } finally {
+                          setSyncing(false);
+                        }
+                      }}
+                    >
+                      {syncing ? "Syncing…" : "Sync"}
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+
+            {tab === "projects" ? (
+              <>
+                <h3 className="set-heading">Projects</h3>
+                <p className="set-desc">
+                  Group related chats together and give them shared instructions the model always follows.
+                </p>
+
+                <div className="proj-new">
+                  <input
+                    type="text"
+                    value={draftName}
+                    placeholder="New project name"
+                    maxLength={60}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        createProject();
+                      }
+                    }}
+                    aria-label="New project name"
+                  />
+                  <button type="button" className="btn primary" onClick={createProject} disabled={!draftName.trim()}>
+                    Create
+                  </button>
+                </div>
+
+                {projects.length === 0 ? (
+                  <p className="lib-empty">No projects yet. Create one to group related chats.</p>
+                ) : (
+                  <div className="proj-list">
+                    {projects.map((p) => (
+                      <div key={p.id} className="proj">
+                        <div className="proj-head">
+                          <input
+                            className="proj-name"
+                            value={p.name}
+                            maxLength={60}
+                            aria-label="Project name"
+                            onChange={(e) => patchProject(p.id, (x) => ({ ...x, name: e.target.value, updatedAt: Date.now() }))}
+                          />
+                          <button
+                            type="button"
+                            className="proj-del"
+                            title={`Delete ${p.name}`}
+                            aria-label={`Delete ${p.name}`}
+                            onClick={() => deleteProject(p.id)}
+                          >
+                            <TrashIcon size={15} />
+                          </button>
+                        </div>
+                        <textarea
+                          className="proj-instr"
+                          value={p.instructions}
+                          placeholder="Shared instructions for every chat in this project…"
+                          aria-label={`Instructions for ${p.name}`}
+                          onChange={(e) =>
+                            patchProject(p.id, (x) => ({ ...x, instructions: e.target.value, updatedAt: Date.now() }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() => {
+                            onNewProjectChat?.(p.id);
+                            onClose();
+                          }}
+                        >
+                          New chat in {p.name}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             ) : null}
 

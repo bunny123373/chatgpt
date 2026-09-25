@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Composer from "./Composer";
+import Canvas from "./Canvas";
+import { useSandbox, parseCsv, coerceRows } from "@/lib/sandbox";
+import { printChat } from "@/lib/printChat";
+import Library from "./Library";
 import MessageRow from "./MessageRow";
 import SettingsModal from "./SettingsModal";
 import Sidebar from "./Sidebar";
@@ -14,25 +18,38 @@ import {
   CopyIcon,
   ArrowDownIcon,
   ShareIcon,
+  FileIcon,
 } from "./Icons";
 import {
   DEFAULT_SETTINGS,
   MODELS,
+  estimateCost,
   modelName,
+  roughTokens,
   type AuthUser,
   type Chat,
+  type FileRef,
   type Msg,
+  type Project,
+  type PromptTemplate,
+  type ResponseMode,
+  type CanvasDoc,
   type Settings,
+  type Usage,
 } from "@/lib/types";
 import {
   clearStore,
   loadActiveId,
   loadChats,
+  loadProjects,
   loadSettings,
+  loadTemplates,
   sanitizeChat,
   saveActiveId,
   saveChats,
+  saveProjects,
   saveSettings,
+  saveTemplates,
   setAuthUid,
   titleFrom,
   uid,
@@ -135,14 +152,402 @@ interface ChatAppProps {
   user?: AuthUser | null;
   /** Sign out of the current Firebase account. */
   onSignOut?: () => void;
+  /** False when Firebase isn't configured — hides the "Log in" affordance. */
+  authAvailable?: boolean;
+  /** Opens the optional sign-in modal. */
+  onOpenLogin?: () => void;
+  /** Persist a custom display name / photo to the sign-in provider. */
+  onSyncProfile?: (displayName: string, photoDataUrl: string | null) => Promise<void>;
 }
 
-export default function ChatApp({ authUid = null, user = null, onSignOut }: ChatAppProps) {
+export default function ChatApp({
+  authUid = null,
+  user = null,
+  onSignOut,
+  authAvailable = true,
+  onOpenLogin,
+  onSyncProfile,
+}: ChatAppProps) {
   // Bind every persisted key (chats/settings/active) to this account before
   // any load/save runs. ChatApp is remounted per account by AuthGate (key=uid).
   setAuthUid(authUid);
 
+  // Browsing is open to everyone, but sending a message needs an account.
+  // When Firebase isn't configured at all, auth is unavailable → never block.
+  const authRequired = authAvailable && !user;
+
   const [chats, setChats] = useState<Chat[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [templates, setTemplates] = useState<PromptTemplate[]>([]);
+  // Canvas side panel document.
+  const [canvasDoc, setCanvasDoc] = useState<CanvasDoc | null>(null);
+  // Documents attached to the next message, and Deep Research arming.
+  const [pendingFiles, setPendingFiles] = useState<FileRef[]>([]);
+  const [filesBusy, setFilesBusy] = useState(false);
+  const [researchOn, setResearchOn] = useState(false);
+  const [researchBusy, setResearchBusy] = useState(false);
+  // Parsed dataset from an attached CSV, used by the sandboxed code runner.
+  const [dataset, setDataset] = useState<{
+    name: string;
+    columns: string[];
+    rows: Record<string, string | number>[];
+    rowCount: number;
+  } | null>(null);
+  const { run: runSandbox } = useSandbox();
+
+  /* ---------- document attachments ---------- */
+  // Declared as hoisted functions (not useCallback) so they can reference the
+  // helpers defined further down this component.
+  async function attachFiles(picked: File[]) {
+    if (!picked.length) return;
+    setFilesBusy(true);
+    const readAsDataUrl = (file: File) =>
+      new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.onerror = () => reject(new Error("read failed"));
+        fr.readAsDataURL(file);
+      });
+    try {
+      const payload = await Promise.all(
+        picked.map(async (f) => ({ name: f.name, type: f.type, dataUrl: await readAsDataUrl(f) }))
+      );
+      const res = await fetch("/api/files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files: payload }),
+      });
+      const data = (await res.json()) as { files?: FileRef[]; error?: string };
+      if (!res.ok || !data.files) {
+        notify(data.error || "Couldn't read those files");
+        return;
+      }
+      setPendingFiles((prev) => [...prev, ...data.files!]);
+
+      // A CSV/TSV attachment also becomes a queryable dataset for the sandbox.
+      const table = data.files!.find(
+        (f) => /\.(csv|tsv)$/i.test(f.name) || f.type === "text/csv" || f.type === "text/tab-separated-values"
+      );
+      if (table?.text) {
+        const parsed = parseCsv(table.text);
+        setDataset({
+          name: table.name,
+          columns: parsed.columns,
+          rows: coerceRows(parsed.rows),
+          rowCount: parsed.rows.length,
+        });
+      }
+    } catch {
+      notify("Upload failed — check your connection");
+    } finally {
+      setFilesBusy(false);
+    }
+  }
+
+  /* ---------- canvas ---------- */
+  function saveCanvasToChat(content: string) {
+    if (!canvasDoc?.chatId || !canvasDoc.msgId) return;
+    patchChat(canvasDoc.chatId, (c) => ({
+      ...c,
+      messages: c.messages.map((m) => (m.id === canvasDoc.msgId ? { ...m, content } : m)),
+      updatedAt: Date.now(),
+    }));
+    notify("Canvas saved to the conversation");
+  }
+
+  function openCanvas(msgId: string, title: string, content: string) {
+    setCanvasDoc({ title, content, chatId: activeId ?? undefined, msgId, updatedAt: Date.now() });
+  }
+
+  /* ---------- prompt templates ---------- */
+  function saveTemplate(title: string, prompt: string) {
+    const t = prompt.trim();
+    if (!t) return;
+    setTemplates((prev) => [
+      { id: uid(), title: (title.trim() || t.slice(0, 32)).slice(0, 60), prompt: t, createdAt: Date.now() },
+      ...prev,
+    ]);
+    notify("Prompt template saved");
+  }
+
+  /* ---------- pdf export ---------- */
+  function exportPdf() {
+    if (!active) return notify("Nothing to export yet");
+    const ok = printChat({
+      title: active.title || "Conversation",
+      who: (r) => (r === "user" ? settings.nickname.trim() || "You" : "Next AI"),
+      messages: active.messages.map((m) => ({ role: m.role, content: m.content })),
+      model: active.model ?? settings.model,
+    });
+    if (!ok) notify("Allow pop-ups to export as PDF");
+  }
+
+  /* ---------- chat tags ---------- */
+  function setChatTags(chatId: string, tags: string[]) {
+    patchChat(chatId, (c) => ({ ...c, tags, updatedAt: Date.now() }));
+  }
+
+  /* ---------- image variations ---------- */
+  async function varyImage(msgId: string) {
+      if (!active) return;
+      const src = active.messages.find((m) => m.id === msgId);
+      if (!src?.generatedImage) return;
+      const chatId = active.id;
+      try {
+        const res = await fetch("/api/image", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(settings.apiKey.trim() ? { "x-api-key": settings.apiKey.trim() } : {}),
+            "x-base-url": settings.baseUrl.trim(),
+          },
+          body: JSON.stringify({ prompt: src.content, ratio: settings.imageRatio, variation: true }),
+        });
+        const data = (await res.json()) as { url?: string; error?: string };
+        if (!res.ok || !data.url) throw new Error(data.error || "Generation failed");
+        const newMsg: Msg = { id: uid(), role: "assistant", content: src.content, generatedImage: data.url };
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === chatId
+              ? {
+                  ...c,
+                  imageVariations: [...(c.imageVariations ?? []), data.url as string].slice(-6),
+                  messages: [...c.messages, newMsg],
+                  updatedAt: Date.now(),
+                }
+              : c
+          )
+        );
+      } catch (e) {
+        notify(e instanceof Error ? e.message : "Variation failed");
+      }
+  }
+
+  /* ---------- sandboxed data analysis ---------- */
+  /**
+   * When the model answers with a ```sandbox block and a dataset is attached,
+   * run the code in a Web Worker and ask the model to write the final answer
+   * from the real output instead of guessing.
+   */
+  async function runSandboxPass(chatId: string, assistantId: string, text: string) {
+    if (!dataset) return;
+    const block = /```sandbox\s*\n([\s\S]*?)```/.exec(text);
+    if (!block) return;
+
+    patchChat(chatId, (c) => ({
+      ...c,
+      messages: c.messages.map((m) =>
+        m.id === assistantId ? { ...m, sandboxStage: "Running the code on your data…" } : m
+      ),
+    }));
+
+    const out = await runSandbox(block[1], dataset.rows);
+    const transcript = [
+      `The code ran in a sandboxed browser worker on "${dataset.name}" (${dataset.rowCount} rows).`,
+      `Columns: ${dataset.columns.join(", ")}`,
+      out.ok ? "It completed successfully." : `It failed: ${out.error}`,
+      out.logs ? `\nConsole output:\n${out.logs}` : "",
+      out.result ? `\nReturned value:\n${out.result}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    // Ask the model to turn the real numbers into an answer.
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(settings.apiKey.trim() ? { "x-api-key": settings.apiKey.trim() } : {}),
+          "x-base-url": settings.baseUrl.trim(),
+        },
+        body: JSON.stringify({
+          model: settings.model,
+          stream: false,
+          temperature: 0.2,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a data analyst. Using the execution output below, write the final answer. State the concrete numbers, mention caveats, keep it concise. Do not emit another sandbox code block.",
+            },
+            { role: "user", content: `Execution output:\n${transcript}` },
+          ],
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      // The route always answers with SSE frames, even for stream:false.
+      const raw = await res.text();
+      let answer = "";
+      for (const frame of raw.split("\n\n")) {
+        const line = frame.startsWith("data:") ? frame.slice(5).trim() : frame.trim();
+        if (!line || line === "[DONE]") continue;
+        try {
+          const j = JSON.parse(line) as {
+            delta?: string;
+            error?: string;
+            choices?: { delta?: { content?: string } }[];
+          };
+          if (j.error) throw new Error(j.error);
+          answer += j.delta ?? j.choices?.[0]?.delta?.content ?? "";
+        } catch {
+          /* ignore malformed frames */
+        }
+        if (answer) break;
+      }
+      if (!answer) return;
+
+      patchChat(chatId, (c) => ({
+        ...c,
+        messages: c.messages.map((m) =>
+          m.id === assistantId
+            ? {
+                ...m,
+                content: `**Analysis of \`${dataset.name}\`\n\n${answer}`,
+                sandboxStage: undefined,
+                sandboxCode: block[1],
+                sandboxOutput: transcript,
+              }
+            : m
+        ),
+        updatedAt: Date.now(),
+      }));
+    } catch (err) {
+      patchChat(chatId, (c) => ({
+        ...c,
+        messages: c.messages.map((m) =>
+          m.id === assistantId
+            ? {
+                ...m,
+                content: `${text}\n\n> **Code execution failed:** ${err instanceof Error ? err.message : "unknown error"}`,
+                sandboxStage: undefined,
+                sandboxCode: block[1],
+              }
+            : m
+        ),
+      }));
+    }
+  }
+
+  /* ---------- deep research ---------- */
+  async function runResearch(question: string) {
+    if (researchBusy) return;
+
+    let chatId = activeId;
+    if (!chatId) {
+      const chat: Chat = {
+        id: uid(),
+        title: titleFrom(question),
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        model: settings.model,
+      };
+      chatId = chat.id;
+      setChats((prev) => [chat, ...prev]);
+      setActiveId(chat.id);
+      void autoTitle(chat.id, question);
+    }
+
+    const userMsg: Msg = { id: uid(), role: "user", content: question };
+    const replyId = uid();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setResearchBusy(true);
+    setBusy(true);
+    setInput("");
+    setResearchOn(false);
+    setPendingFiles([]);
+    stickRef.current = true;
+
+    patchChat(chatId, (c) => ({
+      ...c,
+      messages: [
+        ...c.messages,
+        userMsg,
+        { id: replyId, role: "assistant", content: "", researchStage: "Planning research…" },
+      ],
+      updatedAt: Date.now(),
+    }));
+
+    const setStage = (stage: string) =>
+      patchChat(chatId, (c) => ({
+        ...c,
+        messages: c.messages.map((m) => (m.id === replyId ? { ...m, researchStage: stage } : m)),
+      }));
+
+    try {
+      const res = await fetch("/api/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question,
+          model: settings.model,
+          apiKey: settings.apiKey.trim(),
+          baseUrl: settings.baseUrl.trim(),
+        }),
+        signal: ac.signal,
+      });
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const frames = buf.split("\n\n");
+        buf = frames.pop() ?? "";
+        for (const f of frames) {
+          const line = f.startsWith("data:") ? f.slice(5).trim() : f.trim();
+          if (!line || line === "[DONE]") continue;
+          let j: { message?: string; report?: string; error?: string; sources?: number };
+          try {
+            j = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          if (j.error) throw new Error(j.error);
+          if (j.message) setStage(j.message);
+          if (j.report) {
+            patchChat(chatId, (c) => ({
+              ...c,
+              messages: c.messages.map((m) =>
+                m.id === replyId
+                  ? {
+                      ...m,
+                      content: j.report ?? "",
+                      researchStage: undefined,
+                      researchSources: j.sources ?? 0,
+                      usage: { completionTokens: roughTokens(j.report ?? "") },
+                    }
+                  : m
+              ),
+              updatedAt: Date.now(),
+            }));
+          }
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Research failed";
+      patchChat(chatId, (c) => ({
+        ...c,
+        messages: c.messages.map((m) =>
+          m.id === replyId
+            ? { ...m, content: `⚠️ Deep Research failed: ${msg}`, error: true, researchStage: undefined }
+            : m
+        ),
+      }));
+    } finally {
+      setResearchBusy(false);
+      setBusy(false);
+      abortRef.current = null;
+      if (stickRef.current) scrollToBottom(true);
+    }
+  }
+
   const [activeId, setActiveId] = useState<string | null>(null);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [input, setInput] = useState("");
@@ -155,6 +560,8 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
   const [modelMenu, setModelMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 52, left: 12 });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"general" | "voice" | "profile" | "projects" | "data" | "account">("general");
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -173,6 +580,8 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
     const s = loadSettings();
     setSettings(s);
     setChats(stored);
+    setProjects(loadProjects());
+    setTemplates(loadTemplates());
     const act = loadActiveId();
     setActiveId(act && stored.some((c) => c.id === act) ? act : stored[0]?.id ?? null);
     setReady(true);
@@ -191,6 +600,16 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
 
   useEffect(() => {
     if (!ready) return;
+    saveProjects(projects);
+  }, [projects, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    saveTemplates(templates);
+  }, [templates, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
     saveSettings(settings);
     document.documentElement.dataset.theme = settings.theme;
     document.documentElement.dataset.bubble = settings.bubbleColor;
@@ -202,6 +621,16 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
   }, [activeId, ready]);
 
   const active = useMemo(() => chats.find((c) => c.id === activeId) ?? null, [chats, activeId]);
+
+  // Profile overrides (custom avatar / display name) win over the provider's.
+  const profile = useMemo<AuthUser | null>(() => {
+    if (!user) return null;
+    return {
+      ...user,
+      name: settings.profileName.trim() || user.name,
+      image: settings.avatar || user.image,
+    };
+  }, [user, settings.avatar, settings.profileName]);
   const messages = active?.messages ?? [];
 
   /* ---------- toast ---------- */
@@ -387,10 +816,18 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
       setStreamId(assistantId);
       stickRef.current = true;
 
+      // Per-chat model + reasoning mode, falling back to the current settings.
+      const chatMeta = chats.find((c) => c.id === chatId);
+      const cModel = chatMeta?.model ?? settings.model;
+      const cMode: ResponseMode = settings.mode;
+      const projectInstructions =
+        projects.find((p) => p.id === chatMeta?.projectId)?.instructions.trim() || "";
+
       let acc = "";
       let errored = false;
       let stopped = false;
       let toolsUsed: string[] = [];
+      let usage: Usage | undefined;
 
       const flush = () => {
         const snapshot = acc;
@@ -401,18 +838,53 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
       };
 
       try {
-        // OpenAI-style content: plain string, or a parts array when an image is attached.
+        // OpenAI-style content: plain string, or a parts array when an image or
+        // document is attached to the message.
         const toContent = (m: Msg) => {
-          if (!m.image) return m.content;
+          const docs = (m.files ?? []).map((f) => ({
+            type: "text" as const,
+            text: `\n\n--- Attached file: ${f.name}${f.pages ? ` (${f.pages} pages)` : ""} ---\n${
+              f.text ?? "[binary file — no extractable text]"
+            }`,
+          }));
+          const images = [
+            ...(m.image ? [{ type: "image_url" as const, image_url: { url: m.image } }] : []),
+            ...(m.files ?? [])
+              .filter((f) => f.dataUrl)
+              .map((f) => ({ type: "image_url" as const, image_url: { url: f.dataUrl as string } })),
+          ];
+          if (!docs.length && !images.length) return m.content;
           const parts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
           if (m.content.trim()) parts.push({ type: "text", text: m.content });
-          parts.push({ type: "image_url", image_url: { url: m.image } });
+          parts.push(...docs, ...images);
           return parts;
         };
+
+        // System prompt + the user's standing custom instructions + any project
+        // instructions, in that order of increasing specificity.
+        const system: string[] = [];
+        if (settings.systemPrompt.trim()) system.push(settings.systemPrompt.trim());
+        if (settings.instructions.trim()) {
+          system.push(
+            `The user has shared these standing instructions. Follow them in every reply unless the current request overrides them:\n${settings.instructions.trim()}`
+          );
+        }
+        if (projectInstructions) {
+          system.push(`Project context:\n${projectInstructions}`);
+        }
+        if (dataset) {
+          system.push(
+            `A data file "${dataset.name}" is attached (${dataset.rowCount} rows, columns: ${dataset.columns.join(", ")}). ` +
+              "To compute an answer, reply with a single fenced code block tagged `sandbox` containing plain JavaScript. " +
+              "It receives the rows as an array of objects named `data`. Print findings with `out(...)` or `console.log`, " +
+              "and put the final value in a variable named `result`. It runs in a browser sandbox with no network access."
+          );
+        }
+
         const payload = [
-          ...(settings.systemPrompt.trim() ? [{ role: "system" as const, content: settings.systemPrompt.trim() }] : []),
+          ...(system.length ? [{ role: "system" as const, content: system.join("\n\n") }] : []),
           ...history
-            .filter((m) => !m.error && (m.content.trim() !== "" || !!m.image))
+            .filter((m) => !m.error && (m.content.trim() !== "" || !!m.image || !!m.files?.length))
             .map((m) => ({ role: m.role as "user" | "assistant", content: toContent(m) })),
         ];
 
@@ -436,6 +908,7 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
             stream: true,
             search: settings.search,
             tools: settings.tools,
+            mode: cMode,
             ...(queries ? { queries } : {}),
           }),
           signal: ac.signal,
@@ -459,6 +932,7 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
             delta?: string;
             error?: string;
             tools_used?: string[];
+            usage?: Usage;
             choices?: { delta?: { content?: string } }[];
           };
           try {
@@ -474,6 +948,7 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
           if (Array.isArray(json.tools_used) && json.tools_used.length) {
             toolsUsed = [...toolsUsed, ...json.tools_used];
           }
+          if (json.usage) usage = { ...json.usage };
           const piece = json.delta ?? json.choices?.[0]?.delta?.content ?? "";
           if (piece) {
             acc += piece;
@@ -510,6 +985,24 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
         }
       } finally {
         const finalText = acc;
+        // The model asked for code execution — run it and rewrite the reply.
+        if (dataset && !errored && finalText.includes("```sandbox")) {
+          void runSandboxPass(chatId, assistantId, finalText);
+        }
+        // Prefer provider-reported usage; otherwise estimate from the text.
+        const promptTokens = usage?.promptTokens ?? usage?.totalTokens;
+        const completionTokens = usage?.completionTokens ?? roughTokens(finalText);
+        const finalUsage: Usage | undefined =
+          promptTokens || completionTokens
+            ? {
+                promptTokens,
+                completionTokens,
+                totalTokens: usage?.totalTokens ?? (promptTokens ?? 0) + completionTokens,
+                costUsd:
+                  usage?.costUsd ??
+                  estimateCost(cModel, promptTokens ?? 0, completionTokens),
+              }
+            : undefined;
         patchChat(chatId, (c) => ({
           ...c,
           messages: c.messages.map((m) =>
@@ -519,7 +1012,9 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
                   content: finalText || "(no response)",
                   error: errored,
                   stopped: stopped && !errored,
+                  mode: cMode === "auto" ? undefined : cMode,
                   toolsUsed: toolsUsed.length ? [...new Set(toolsUsed)] : undefined,
+                  usage: finalUsage,
                 }
               : m
           ),
@@ -531,7 +1026,7 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
         if (stickRef.current) scrollToBottom(true);
       }
     },
-    [patchChat, scrollToBottom, settings]
+    [chats, patchChat, projects, scrollToBottom, settings]
   );
 
   /* ---------- chat tools: pin / delete message / edit & resend / export ---------- */
@@ -542,6 +1037,46 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
       notify(pinned ? "Chat unpinned" : "Chat pinned");
     },
     [patchChat, chats, notify]
+  );
+
+  // Pin a single message so it stays easy to find (ChatGPT-style).
+  const toggleMsgPin = useCallback(
+    (chatId: string, msgId: string) => {
+      const current = chats.find((c) => c.id === chatId)?.messages.find((m) => m.id === msgId)?.pinned;
+      patchChat(chatId, (c) => ({
+        ...c,
+        messages: c.messages.map((m) => (m.id === msgId ? { ...m, pinned: !m.pinned } : m)),
+        updatedAt: Date.now(),
+      }));
+      notify(current ? "Message unpinned" : "Message pinned");
+    },
+    [chats, notify, patchChat]
+  );
+
+  // Branch: fork the conversation at this message into a brand-new chat.
+  const branchFrom = useCallback(
+    (chatId: string, msgId: string) => {
+      const source = chats.find((c) => c.id === chatId);
+      if (!source) return;
+      const idx = source.messages.findIndex((m) => m.id === msgId);
+      if (idx === -1) return;
+      const kept = source.messages.slice(0, idx + 1).map((m) => ({ ...m, id: uid() }));
+      const branch: Chat = {
+        id: uid(),
+        title: `${source.title || "New chat"} (branch)`,
+        messages: kept,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        model: source.model,
+        ...(source.projectId ? { projectId: source.projectId } : {}),
+      };
+      setChats((prev) => [branch, ...prev]);
+      setActiveId(branch.id);
+      setInput("");
+      stickRef.current = true;
+      notify("Branched into a new chat");
+    },
+    [chats, notify]
   );
 
   // Deleting a message removes it and everything after it (ChatGPT behavior).
@@ -631,7 +1166,7 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
       notify("Nothing to export yet");
       return;
     }
-    const who = (role: string) => (role === "user" ? settings.nickname.trim() || "You" : "ChatGPT");
+    const who = (role: string) => (role === "user" ? settings.nickname.trim() || "You" : "Next AI");
     const md = [
       `# ${a.title}`,
       "",
@@ -655,7 +1190,7 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
       notify("Nothing to copy yet");
       return;
     }
-    const who = (role: string) => (role === "user" ? settings.nickname.trim() || "You" : "ChatGPT");
+    const who = (role: string) => (role === "user" ? settings.nickname.trim() || "You" : "Next AI");
     const md = [
       `# ${a.title}`,
       "",
@@ -691,6 +1226,12 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
       return;
     }
     if (imgBusy) return;
+    // Image generation is account-gated, same as chat.
+    if (authRequired && !user) {
+      notify("Log in to create images");
+      onOpenLogin?.();
+      return;
+    }
     setImgMode(false);
 
     const userMsg: Msg = { id: uid(), role: "user", content: `Generate an image: ${prompt}` };
@@ -757,11 +1298,26 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
     } finally {
       setImgBusy(false);
     }
-  }, [active, activeId, autoTitle, imgBusy, input, notify, patchChat, scrollToBottom, setChats, settings, setImgMode]);
+  }, [
+    active,
+    activeId,
+    authRequired,
+    autoTitle,
+    imgBusy,
+    input,
+    notify,
+    onOpenLogin,
+    patchChat,
+    scrollToBottom,
+    setChats,
+    settings,
+    setImgMode,
+    user,
+  ]);
 
   const exportAllChats = useCallback(() => {
     const data = {
-      app: "chatgpt2-next",
+      app: "next-ai",
       version: 1,
       exportedAt: new Date().toISOString(),
       settings: {
@@ -817,11 +1373,28 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
   const send = useCallback(
     (raw?: string) => {
       const text = (raw ?? input).trim();
-      if (busy || (!text && !attach)) return;
+      if (busy || filesBusy || (!text && !attach && pendingFiles.length === 0)) return;
+
+      // Chatting requires an account: prompt to log in instead of sending.
+      if (authRequired && !user) {
+        notify("Log in to send a message");
+        onOpenLogin?.();
+        return;
+      }
 
       // Image mode is armed: sending generates an image instead of a chat reply.
       if (imgMode) {
         void generateImage();
+        return;
+      }
+
+      // Deep Research runs its own multi-step pipeline.
+      if (researchOn) {
+        if (!text) {
+          notify("Ask a research question first");
+          return;
+        }
+        void runResearch(text);
         return;
       }
 
@@ -843,11 +1416,13 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
         setActiveId(chat.id);
       }
 
+      const docs = pendingFiles.length ? pendingFiles : undefined;
       const userMsg: Msg = {
         id: uid(),
         role: "user",
         content: text,
         ...(attach ? { image: attach } : {}),
+        ...(docs ? { files: docs } : {}),
       };
       history = [...((active?.messages ?? []) as Msg[]), userMsg];
 
@@ -868,12 +1443,29 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
 
       setInput("");
       setAttach(null);
+      setPendingFiles([]);
       void runStream(id, history);
 
       // ChatGPT names the conversation from its first user message.
-      if (isFirst) void autoTitle(id, text);
+      if (isFirst) void autoTitle(id, text || docs?.[0]?.name || "New chat");
     },
-    [active, activeId, attach, autoTitle, busy, generateImage, imgMode, input, runStream, settings.model]
+    [
+      active,
+      activeId,
+      attach,
+      authRequired,
+      autoTitle,
+      busy,
+      filesBusy,
+      generateImage,
+      imgMode,
+      input,
+      notify,
+      onOpenLogin,
+      runStream,
+      settings.model,
+      user,
+    ]
   );
 
   const regenerate = useCallback(() => {
@@ -970,10 +1562,34 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
         onDelete={deleteChat}
         onPin={togglePin}
         onRename={(id, title) => patchChat(id, (c) => ({ ...c, title }))}
+        onTags={setChatTags}
         onNew={newChat}
-        user={user}
+        onCreateImage={() => {
+          newChat();
+          setImgMode(true);
+        }}
+        user={profile}
         onSignOut={onSignOut}
         onOpenSettings={() => setSettingsOpen(true)}
+        onEditProfile={() => {
+          setSettingsTab("profile");
+          setSettingsOpen(true);
+        }}
+        onOpenLibrary={() => setLibraryOpen(true)}
+        onOpenLogin={onOpenLogin}
+        authAvailable={authAvailable}
+      />
+
+      <Library
+        open={libraryOpen}
+        chats={chats}
+        activeId={activeId}
+        onClose={() => setLibraryOpen(false)}
+        onSelect={selectChat}
+        onDelete={deleteChat}
+        onPin={togglePin}
+        onRename={(id, title) => patchChat(id, (c) => ({ ...c, title }))}
+        onImport={importChats}
       />
 
       <main className="main">
@@ -1018,6 +1634,14 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
               <CopyIcon />
             </button>
             <button
+              className="icon-btn hide-xs"
+              type="button"
+              title="Export chat as PDF"
+              onClick={exportPdf}
+            >
+              <FileIcon size={16} />
+            </button>
+            <button
               className="icon-btn"
               type="button"
               title="Export chat as Markdown"
@@ -1035,9 +1659,6 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
               onClick={() => setSettings((s) => ({ ...s, theme: s.theme === "dark" ? "light" : "dark" }))}
             >
               {settings.theme === "dark" ? <SunIcon /> : <MoonIcon />}
-            </button>
-            <button className="icon-btn" type="button" title="Settings" onClick={() => setSettingsOpen(true)}>
-              ⚙
             </button>
           </div>
         </div>
@@ -1088,7 +1709,7 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
             <div className="welcome">
               <h1>How can I help today?</h1>
               <p>
-                ChatGPT 2.0 — streaming answers, Markdown, and chat history saved in your browser.
+                Next AI — streaming answers, Markdown, and chat history saved in your browser.
                 {usingDemo ? " Running in offline demo mode until you add an API key." : ""}
               </p>
               <div className="cards">
@@ -1115,6 +1736,11 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
                   onRegenerate={!busy && i === messages.length - 1 && m.role === "assistant" ? regenerate : undefined}
                   onFeedback={m.role === "assistant" ? (v) => active && setFeedback(active.id, m.id, v) : undefined}
                   onShare={shareChat}
+                  onPin={active ? () => toggleMsgPin(active.id, m.id) : undefined}
+                  onBranch={active ? () => branchFrom(active.id, m.id) : undefined}
+                  onCanvas={() => openCanvas(m.id, active?.title || "Canvas", m.content)}
+                  onVary={m.generatedImage ? () => void varyImage(m.id) : undefined}
+                  showUsage={settings.showUsage}
                 />
               ))}
             </div>
@@ -1155,6 +1781,18 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
           imgBusy={imgBusy}
           imgRatio={settings.imageRatio}
           onRatioChange={(r) => setSettings((s) => ({ ...s, imageRatio: r }))}
+          files={pendingFiles}
+          onFiles={setPendingFiles}
+          onFilesAttach={(picked) => void attachFiles(picked)}
+          filesBusy={filesBusy}
+          mode={settings.mode}
+          onModeChange={(m) => setSettings((s) => ({ ...s, mode: m }))}
+          research={researchOn}
+          onToggleResearch={() => setResearchOn((v) => !v)}
+          templates={templates}
+          onUseTemplate={(p) => setInput((cur) => (cur.trim() ? `${cur.trim()}\n\n${p}` : p))}
+          onSaveTemplate={saveTemplate}
+          onDeleteTemplate={(id) => setTemplates((prev) => prev.filter((t) => t.id !== id))}
         />
       </main>
 
@@ -1172,6 +1810,26 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
         }}
         user={user}
         onSignOut={onSignOut}
+        projects={projects}
+        onProjects={setProjects}
+        onDeleteProject={(id) => setChats((prev) => prev.map((c) => (c.projectId === id ? { ...c, projectId: undefined } : c)))}
+        onNewProjectChat={(projectId) => {
+          const chat: Chat = {
+            id: uid(),
+            title: "New chat",
+            messages: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            model: settings.model,
+            projectId,
+          };
+          setChats((prev) => [chat, ...prev]);
+          setActiveId(chat.id);
+          setInput("");
+          stickRef.current = true;
+        }}
+        onSyncProfile={onSyncProfile}
+        openTab={settingsTab}
       />
 
       {helpOpen ? (
@@ -1209,6 +1867,13 @@ export default function ChatApp({ authUid = null, user = null, onSignOut }: Chat
           </div>
         </div>
       ) : null}
+
+      <Canvas
+        doc={canvasDoc}
+        onClose={() => setCanvasDoc(null)}
+        onChange={setCanvasDoc}
+        onSaveToChat={canvasDoc?.msgId ? saveCanvasToChat : undefined}
+      />
 
       <div className={`toast${toast ? " show" : ""}`} role="status">
         <span>{toast}</span>

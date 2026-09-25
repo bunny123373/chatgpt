@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChatGPTLogo } from "./Icons";
 
 interface Props {
   onSignIn: (provider: "google" | "github") => Promise<void>;
+  onSignInEmail: (email: string, password: string) => Promise<string | null>;
+  onSignUpEmail: (name: string, email: string, password: string) => Promise<{ verify: boolean }>;
+  onResetPassword: (email: string) => Promise<void>;
+  /** "modal" renders as a dismissible overlay; "gate" fills the screen. */
+  variant?: "modal" | "gate";
+  onClose?: () => void;
+  onSignedIn?: () => void;
 }
+
+type Mode = "signin" | "signup" | "reset";
 
 function tipFor(code: string): string | null {
   switch (code) {
@@ -19,23 +28,70 @@ function tipFor(code: string): string | null {
       return null;
     case "auth/account-exists-with-different-credential":
       return "That email is already linked to another sign-in method. Use that method instead.";
+    // ---- email / password ----
+    case "auth/email-already-in-use":
+      return "An account with that email already exists. Try signing in instead.";
+    case "auth/invalid-email":
+      return "That email address doesn't look right.";
+    case "auth/missing-password":
+      return "Enter your password.";
+    case "auth/weak-password":
+      return "Passwords need at least 6 characters.";
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+    case "auth/invalid-login-credentials":
+      return "Wrong email or password.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Wait a minute and try again.";
+    case "auth/network-request-failed":
+      return "Network error — check your connection and try again.";
     default:
       return null;
   }
 }
 
-export default function LoginScreen({ onSignIn }: Props) {
+export default function LoginScreen({
+  onSignIn,
+  onSignInEmail,
+  onSignUpEmail,
+  onResetPassword,
+  variant = "gate",
+  onClose,
+  onSignedIn,
+}: Props) {
+  const [mode, setMode] = useState<Mode>("signin");
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"google" | "github" | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"google" | "github" | "email" | null>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+
+  // Escape closes the modal variant.
+  useEffect(() => {
+    if (variant !== "modal" || !onClose) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [variant, onClose]);
+
+  const reset = () => {
+    setErr(null);
+    setOk(null);
+  };
 
   const run = async (provider: "google" | "github") => {
-    setErr(null);
+    reset();
     setBusy(provider);
     try {
       await onSignIn(provider);
+      onSignedIn?.();
     } catch (e) {
-      const code =
-        (e as { code?: string })?.code ?? (e as { message?: string })?.message ?? "Sign-in failed";
+      const code = (e as { code?: string })?.code ?? (e as { message?: string })?.message ?? "Sign-in failed";
       const tip = tipFor(code);
       setErr(tip ?? "Couldn't sign in. Check the Firebase console (Authentication → Sign-in method) and try again.");
     } finally {
@@ -43,15 +99,166 @@ export default function LoginScreen({ onSignIn }: Props) {
     }
   };
 
-  return (
-    <div className="auth-wrap">
-      <div className="auth-inner">
-        <div className="auth-logo">
-          <ChatGPTLogo size={42} />
-        </div>
+  const submitEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    reset();
 
-        <h1>Welcome back</h1>
-        <p className="auth-sub">Sign in to continue to ChatGPT 2.0</p>
+    if (!email.trim()) return setErr("Enter your email address.");
+    if (mode !== "reset" && password.length < 6) return setErr("Passwords need at least 6 characters.");
+
+    setBusy("email");
+    try {
+      if (mode === "signin") {
+        await onSignInEmail(email, password);
+        onSignedIn?.();
+        // onAuthStateChanged swaps the screen.
+      } else if (mode === "signup") {
+        const { verify } = await onSignUpEmail(name, email, password);
+        setOk(
+          verify
+            ? "Account created. Check your inbox to verify the address, then sign in."
+            : "Account created. You can sign in now."
+        );
+        setMode("signin");
+        setPassword("");
+      } else {
+        await onResetPassword(email);
+        setOk("If that email has an account, a password-reset link is on its way.");
+        setMode("signin");
+      }
+    } catch (err) {
+      const code = (err as { code?: string })?.code ?? (err as { message?: string })?.message ?? "Something went wrong";
+      setErr(tipFor(code) ?? "That didn't work. Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const heading =
+    mode === "signup" ? "Create your account" : mode === "reset" ? "Reset password" : "Get responses tailored to you";
+
+  const sub =
+    mode === "signup"
+      ? "Sign up to continue to Next AI"
+      : mode === "reset"
+        ? "We'll email you a link to choose a new password"
+        : "Log in to get answers based on saved chats, plus create images and upload files.";
+
+  const body = (
+    <div className="auth-inner">
+      {variant === "modal" ? (
+        <button className="auth-close" type="button" onClick={onClose} title="Close" aria-label="Close sign in">
+          ✕
+        </button>
+      ) : null}
+
+      <div className="auth-logo">
+        <ChatGPTLogo size={42} />
+      </div>
+
+      <h1>{heading}</h1>
+      <p className="auth-sub">{sub}</p>
+
+        {mode === "reset" ? (
+          <form className="auth-form" onSubmit={submitEmail}>
+            <label className="auth-label" htmlFor="auth-email">
+              Email
+            </label>
+            <input
+              id="auth-email"
+              className="auth-input"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus
+            />
+            <button className="auth-submit" type="submit" disabled={busy !== null}>
+              {busy === "email" ? "Sending…" : "Send reset link"}
+            </button>
+            <button className="auth-link" type="button" onClick={() => { reset(); setMode("signin"); }}>
+              ← Back to sign in
+            </button>
+          </form>
+        ) : (
+          <form className="auth-form" onSubmit={submitEmail}>
+            {mode === "signup" ? (
+              <>
+                <label className="auth-label" htmlFor="auth-name">
+                  Name
+                </label>
+                <input
+                  id="auth-name"
+                  className="auth-input"
+                  type="text"
+                  autoComplete="name"
+                  placeholder="Your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </>
+            ) : null}
+
+            <label className="auth-label" htmlFor="auth-email">
+              Email
+            </label>
+            <input
+              id="auth-email"
+              className="auth-input"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+
+            <div className="auth-label-row">
+              <label className="auth-label" htmlFor="auth-password">
+                Password
+              </label>
+              {mode === "signin" ? (
+                <button className="auth-link tiny" type="button" onClick={() => { reset(); setMode("reset"); }}>
+                  Forgot password?
+                </button>
+              ) : null}
+            </div>
+            <div className="auth-pw">
+              <input
+                id="auth-password"
+                className="auth-input"
+                type={showPw ? "text" : "password"}
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                placeholder={mode === "signup" ? "At least 6 characters" : "••••••••"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                className="auth-eye"
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
+                title={showPw ? "Hide password" : "Show password"}
+                aria-label={showPw ? "Hide password" : "Show password"}
+              >
+                {showPw ? "Hide" : "Show"}
+              </button>
+            </div>
+
+            <button className="auth-submit" type="submit" disabled={busy !== null}>
+              {busy === "email"
+                ? mode === "signup"
+                  ? "Creating account…"
+                  : "Signing in…"
+                : mode === "signup"
+                  ? "Create account"
+                  : "Sign in"}
+            </button>
+          </form>
+        )}
+
+        <div className="auth-or">
+          <span>or continue with</span>
+        </div>
 
         <div className="auth-buttons">
           <button type="button" className="provider-btn" disabled={busy !== null} onClick={() => run("google")}>
@@ -70,10 +277,65 @@ export default function LoginScreen({ onSignIn }: Props) {
             {err}
           </p>
         ) : null}
+        {ok ? (
+          <p className="auth-ok" role="status">
+            {ok}
+          </p>
+        ) : null}
+
+        <p className="auth-switch">
+          {mode === "signup" ? (
+            <>
+              Already have an account?{" "}
+              <button
+                className="auth-link"
+                type="button"
+                onClick={() => {
+                  reset();
+                  setMode("signin");
+                }}
+              >
+                Sign in
+              </button>
+            </>
+          ) : (
+            <>
+              New here?{" "}
+              <button
+                className="auth-link"
+                type="button"
+                onClick={() => {
+                  reset();
+                  setMode("signup");
+                }}
+              >
+                Create an account
+              </button>
+            </>
+          )}
+        </p>
 
         <p className="auth-note">
-          Conversations are stored in this browser and tied to your account — sign out to switch users.
+          {variant === "modal"
+            ? "You can keep using Next AI without an account — chats stay in this browser."
+            : "Conversations are stored in this browser and tied to your account — sign out to switch users."}
         </p>
+    </div>
+  );
+
+  if (variant === "gate") {
+    return <div className="auth-wrap">{body}</div>;
+  }
+
+  return (
+    <div
+      className="auth-overlay"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose?.();
+      }}
+    >
+      <div role="dialog" aria-modal="true" aria-label="Log in">
+        {body}
       </div>
     </div>
   );

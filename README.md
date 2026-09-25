@@ -1,4 +1,4 @@
-# ChatGPT 2.0 — Next.js
+# Next AI — Next.js
 
 A ChatGPT-style AI chat app built with the Next.js App Router. Streaming answers, Markdown
 rendering, persistent chat history, model switching, theming, and an offline demo mode that

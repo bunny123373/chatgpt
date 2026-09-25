@@ -29,7 +29,7 @@ export function demoReply(prompt: string, history: { role: string }[] = []): str
   if (/^(hi|hey|hello|yo|good (morning|evening|afternoon))\b/.test(p.trim()) || p.trim().length < 4) {
     return (
       NOTE +
-      `Hey! I'm **ChatGPT 2.0** running in offline demo mode. I can still show you the full experience:\n\n` +
+      `Hey! I'm **Next AI** running in offline demo mode. I can still show you the full experience:\n\n` +
       `- **Streaming** replies token by token\n` +
       `- **Markdown** rendering (headings, lists, tables, code)\n` +
       `- Chat **history** saved in your browser\n\n` +
@@ -109,7 +109,7 @@ export function demoReply(prompt: string, history: { role: string }[] = []): str
       `- Open questions have narrowed to a single trade-off.\n` +
       `- Next steps are small enough to finish this week.\n\n` +
       `Could you let me know your preference by Friday? Happy to jump on a call if it's easier.\n\n` +
-      `Thanks,\n*— ChatGPT 2.0 (demo)*\n\n` +
+      `Thanks,\n*— Next AI (demo)*\n\n` +
       `Tell me the **tone** (warm, formal, playful) and **length** and I'll redraft it.`
     );
   }

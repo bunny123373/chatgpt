@@ -95,6 +95,8 @@ export async function POST(req: Request) {
     title?: boolean;
     /** Batch web search: up to 5 queries in one request (xKiro supports array). */
     queries?: string[];
+    /** Reasoning mode: "quick" (fast) or "thinking" (deeper, longer). */
+    mode?: "auto" | "quick" | "thinking";
   } = {};
   try {
     body = await req.json();
@@ -116,7 +118,13 @@ export async function POST(req: Request) {
     : [];
 
   const model = typeof body.model === "string" && body.model ? body.model : "gpt-4o-mini";
-  const temperature = typeof body.temperature === "number" ? body.temperature : 0.7;
+  const baseTemperature = typeof body.temperature === "number" ? body.temperature : 0.7;
+
+  // ChatGPT-style reasoning modes. "Thinking" trades a little creativity for
+  // more careful, longer answers; "Quick" keeps the user's own temperature.
+  const mode = body.mode === "thinking" || body.mode === "quick" ? body.mode : "auto";
+  const temperature = mode === "thinking" ? Math.min(baseTemperature, 0.6) : baseTemperature;
+  const maxTokens = mode === "thinking" ? 8192 : undefined;
 
   const headerKey = req.headers.get("x-api-key")?.trim() || "";
   const apiKey = headerKey || process.env.XKIRO_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || "";
@@ -308,9 +316,12 @@ export async function POST(req: Request) {
             model,
             temperature,
             stream: true,
+            // Ask OpenAI-compatible providers for a final usage chunk.
+            stream_options: { include_usage: true },
+            ...(maxTokens ? { max_tokens: maxTokens } : {}),
             messages: finalMessages,
           }),
-          signal: req.signal, // TODO: forward client cancellation so upstream stops/reserves billing
+          signal: req.signal, // forwarded so Stop cancels the upstream call
         });
 
         if (!upstream.ok || !upstream.body) {

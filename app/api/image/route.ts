@@ -5,23 +5,27 @@ export const dynamic = "force-dynamic";
 const IMAGE_MODEL = "sensenova/sensenova-u1.5-lite";
 
 /**
- * Pixel sizes per aspect ratio. xKiro converts `size` to the nearest aspect
- * ratio the model supports (one image is one unit regardless of size).
+ * Pixel sizes per aspect ratio.
+ *
+ * The SenseNova image model only accepts a fixed set of exact sizes:
+ *   256x256, 512x512, 1024x1024, 1024x1792, 1792x1024, 1024x1536, 1536x1024
+ * Anything else is rejected with "Unsupported size". So each ChatGPT ratio
+ * maps to the closest *natively supported* size here.
  */
 const RATIO_SIZES: Record<string, string> = {
   "1:1": "1024x1024",
-  "4:3": "1365x1024",
+  "4:3": "1536x1024", // 3:2 — closest supported landscape for 4:3
+  "3:4": "1024x1536", // 2:3 — closest supported portrait for 3:4
   "16:9": "1792x1024",
-  "3:4": "1024x1365",
   "9:16": "1024x1792",
-  "21:9": "1792x768",
+  "21:9": "1792x1024", // ultrawide falls back to the widest native (16:9)
 };
 const DEFAULT_RATIO = "1:1";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function POST(req: Request) {
-  let body: { prompt?: string; ratio?: string } = {};
+  let body: { prompt?: string; ratio?: string; variation?: boolean } = {};
   try {
     body = await req.json();
   } catch {
@@ -32,6 +36,8 @@ export async function POST(req: Request) {
   if (!prompt) return Response.json({ error: "A prompt is required." }, { status: 400 });
   const ratio = body.ratio && body.ratio in RATIO_SIZES ? body.ratio : DEFAULT_RATIO;
   const size = RATIO_SIZES[ratio];
+  // A variation nudges the wording so the provider takes a different pass.
+  const finalPrompt = body.variation === true ? `${prompt} (variation)` : prompt;
 
   const headerKey = req.headers.get("x-api-key")?.trim() || "";
   const apiKey = headerKey || process.env.XKIRO_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || "";
@@ -60,7 +66,7 @@ export async function POST(req: Request) {
       headers,
       body: JSON.stringify({
         model: IMAGE_MODEL,
-        prompt,
+        prompt: finalPrompt,
         n: 1,
         size,
       }),

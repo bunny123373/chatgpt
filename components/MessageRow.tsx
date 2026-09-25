@@ -14,6 +14,11 @@ import {
   ThumbDownIcon,
   ThumbUpIcon,
   TrashIcon,
+  PinIcon,
+  BranchIcon,
+  FileIcon,
+  CanvasIcon,
+  VariateIcon,
 } from "./Icons";
 import { isSpeaking, primeVoices, speak, stopSpeaking } from "@/lib/speech";
 import type { Msg } from "@/lib/types";
@@ -31,9 +36,35 @@ interface Props {
   /** ChatGPT-style 👍/👎 on assistant replies. */
   onFeedback?: (value: "up" | "down" | null) => void;
   onShare?: () => void;
+  /** Pin this message so it's easy to find later. */
+  onPin?: () => void;
+  /** Start a new chat that branches from this message. */
+  onBranch?: () => void;
+  /** Open this reply in the Canvas side panel. */
+  onCanvas?: () => void;
+  /** Generate another take of a generated image. */
+  onVary?: () => void;
+  /** Show the token/cost readout. */
+  showUsage?: boolean;
 }
 
-function MessageRow({ msg, streaming, nickname, model, onEdit, onDelete, onRegenerate, onCopy, onFeedback, onShare }: Props) {
+function MessageRow({
+  msg,
+  streaming,
+  nickname,
+  model,
+  onEdit,
+  onDelete,
+  onRegenerate,
+  onCopy,
+  onFeedback,
+  onShare,
+  onPin,
+  onBranch,
+  onCanvas,
+  onVary,
+  showUsage,
+}: Props) {
   const html = useMemo(() => renderMarkdown(msg.content), [msg.content]);
   const isUser = msg.role === "user";
   const imgUrl = msg.generatedImage;
@@ -41,24 +72,19 @@ function MessageRow({ msg, streaming, nickname, model, onEdit, onDelete, onRegen
   const empty = msg.content.length === 0;
   const initial = (nickname?.trim()[0] ?? "Y").toUpperCase();
 
-  // Save a generated image to disk. The CDN may be cross-origin without CORS
-  // headers, so fall back to opening the image in a new tab for manual save.
+  // Save a generated image. Routed through /api/image-proxy so the download
+  // works even when the image CDN sends no CORS headers (a direct fetch would
+  // otherwise fail and force a new tab instead of saving the file).
   const downloadImage = async (url: string) => {
-    try {
-      const res = await fetch(url, { mode: "cors" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = `cf-image-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(objectUrl);
-    } catch {
-      window.open(url, "_blank", "noopener");
-    }
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const proxied = `/api/image-proxy?url=${encodeURIComponent(url)}&name=next-ai-${stamp}.png`;
+    const a = document.createElement("a");
+    a.href = proxied;
+    a.download = `next-ai-${stamp}.png`;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
 
   const [editing, setEditing] = useState(false);
@@ -143,6 +169,31 @@ function MessageRow({ msg, streaming, nickname, model, onEdit, onDelete, onRegen
               <img src={msg.image} alt="Attached" />
             </div>
           ) : null}
+          {msg.files?.length ? (
+            <div className="msg-files">
+              {msg.files.map((f) => (
+                <div key={f.id} className={`msg-file${f.error ? " err" : ""}`} title={f.error || f.name}>
+                  {f.dataUrl ? (
+                    <img className="mf-thumb" src={f.dataUrl} alt={f.name} />
+                  ) : (
+                    <span className="mf-icon" aria-hidden>
+                      <FileIcon size={16} />
+                    </span>
+                  )}
+                  <span className="mf-meta">
+                    <span className="mf-name">{f.name}</span>
+                    <span className="mf-sub">
+                      {f.error
+                        ? "Couldn’t read"
+                        : f.pages
+                          ? `${f.pages} pages`
+                          : `${Math.max(1, Math.round(f.size / 1024))} KB`}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {msg.content ? msg.content : null}
         </div>
       ) : busy && empty ? (
@@ -181,7 +232,16 @@ function MessageRow({ msg, streaming, nickname, model, onEdit, onDelete, onRegen
               ) : null}
               <span dangerouslySetInnerHTML={{ __html: html }} />
               {busy ? <span className="cursor" /> : null}
+              {msg.researchStage && !msg.content ? (
+                <p className="research-stage" role="status">
+                  <span className="rs-dot" aria-hidden />
+                  {msg.researchStage}
+                </p>
+              ) : null}
               {msg.stopped && !busy ? <p className="stopped">Stopped by user.</p> : null}
+              {msg.researchSources ? (
+                <p className="research-note">Based on {msg.researchSources} web sources</p>
+              ) : null}
               {!isUser && !busy && !empty && model ? (
                 <p className="model-tag" title={`This reply was generated with ${model}`}>
                   via {model}
@@ -195,6 +255,18 @@ function MessageRow({ msg, streaming, nickname, model, onEdit, onDelete, onRegen
                     </span>
                   ))}
                 </div>
+              ) : null}
+              {showUsage && msg.usage ? (
+                <p className="usage-tag" title="Token usage and estimated cost for this reply">
+                  {msg.usage.totalTokens ? `${msg.usage.totalTokens.toLocaleString()} tokens` : null}
+                  {msg.usage.totalTokens && msg.usage.costUsd !== undefined ? " · " : null}
+                  {msg.usage.costUsd !== undefined
+                    ? msg.usage.costUsd === 0
+                      ? "free"
+                      : `$${msg.usage.costUsd.toFixed(4)}`
+                    : null}
+                  {msg.mode ? ` · ${msg.mode} mode` : null}
+                </p>
               ) : null}
             </>
           )}
@@ -245,6 +317,48 @@ function MessageRow({ msg, streaming, nickname, model, onEdit, onDelete, onRegen
               <ShareIcon size={15} />
             </button>
           ) : null}
+          {onPin ? (
+            <button
+              type="button"
+              className={msg.pinned ? "active" : ""}
+              title={msg.pinned ? "Unpin message" : "Pin message"}
+              aria-label={msg.pinned ? "Unpin message" : "Pin message"}
+              aria-pressed={!!msg.pinned}
+              onClick={onPin}
+            >
+              <PinIcon size={15} />
+            </button>
+          ) : null}
+          {onBranch ? (
+            <button
+              type="button"
+              title="Branch into a new chat from here"
+              aria-label="Branch into a new chat from here"
+              onClick={onBranch}
+            >
+              <BranchIcon size={15} />
+            </button>
+          ) : null}
+          {onCanvas ? (
+            <button
+              type="button"
+              title="Open in Canvas"
+              aria-label="Open in Canvas"
+              onClick={onCanvas}
+            >
+              <CanvasIcon size={15} />
+            </button>
+          ) : null}
+          {onVary ? (
+            <button
+              type="button"
+              title="Generate a variation"
+              aria-label="Generate a variation of this image"
+              onClick={onVary}
+            >
+              <VariateIcon size={15} />
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -281,7 +395,7 @@ function MessageRow({ msg, streaming, nickname, model, onEdit, onDelete, onRegen
   );
 
   return (
-    <div className={`msg ${isUser ? "user" : "assistant"}`}>
+    <div className={`msg ${isUser ? "user" : "assistant"}${msg.pinned ? " pinned" : ""}`}>
       {isUser ? (
         <>
           {body}

@@ -1,9 +1,11 @@
-import { BUBBLE_COLORS, DEFAULT_SETTINGS, IMAGE_RATIOS, type Chat, type Msg, type Settings } from "./types";
+import { BUBBLE_COLORS, DEFAULT_SETTINGS, IMAGE_RATIOS, type Chat, type Msg, type Project, type PromptTemplate, type Settings } from "./types";
 
 const K_CHATS = "chatgpt2.chats";
 const K_ACTIVE = "chatgpt2.active";
 const K_SETTINGS = "chatgpt2.settings";
 const K_SIDEBAR = "chatgpt2.sidebar";
+const K_PROJECTS = "chatgpt2.projects";
+const K_TEMPLATES = "chatgpt2.templates";
 
 let authUid: string | null = null;
 
@@ -23,7 +25,7 @@ function scoped(key: string): string {
 
 /** Remove every saved key for the current account (anonymous clears the legacy keys). */
 export function clearStore(): void {
-  for (const base of [K_CHATS, K_ACTIVE, K_SETTINGS, K_SIDEBAR]) {
+  for (const base of [K_CHATS, K_ACTIVE, K_SETTINGS, K_SIDEBAR, K_PROJECTS]) {
     try {
       window.localStorage.removeItem(scoped(base));
     } catch {
@@ -82,7 +84,51 @@ export function sanitizeChat(c: unknown): Chat | null {
     updatedAt: typeof x.updatedAt === "number" ? x.updatedAt : Date.now(),
     pinned: typeof x.pinned === "boolean" ? x.pinned : false,
     model: typeof x.model === "string" ? x.model : undefined,
+    projectId: typeof x.projectId === "string" ? x.projectId : undefined,
+    tags: Array.isArray(x.tags) ? (x.tags as unknown[]).filter((t): t is string => typeof t === "string").slice(0, 8) : undefined,
+    imageVariations: Array.isArray(x.imageVariations)
+      ? (x.imageVariations as unknown[]).filter((u): u is string => typeof u === "string").slice(0, 6)
+      : undefined,
   };
+}
+
+/* ---------- Projects ---------- */
+
+export function loadProjects(): Project[] {
+  const rows = read<Project[]>(scoped(K_PROJECTS), []);
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter((p) => p && typeof p.id === "string" && typeof p.name === "string")
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      instructions: typeof p.instructions === "string" ? p.instructions : "",
+      createdAt: typeof p.createdAt === "number" ? p.createdAt : Date.now(),
+      updatedAt: typeof p.updatedAt === "number" ? p.updatedAt : Date.now(),
+    }));
+}
+
+export function saveProjects(projects: Project[]): void {
+  write(scoped(K_PROJECTS), projects.slice(0, 100));
+}
+
+/* ---------- Prompt templates ---------- */
+
+export function loadTemplates(): PromptTemplate[] {
+  const rows = read<PromptTemplate[]>(scoped(K_TEMPLATES), []);
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter((t) => t && typeof t.id === "string" && typeof t.prompt === "string")
+    .map((t) => ({
+      id: t.id,
+      title: (typeof t.title === "string" && t.title.trim()) || t.prompt.slice(0, 32),
+      prompt: t.prompt.slice(0, 4000),
+      createdAt: typeof t.createdAt === "number" ? t.createdAt : Date.now(),
+    }));
+}
+
+export function saveTemplates(templates: PromptTemplate[]): void {
+  write(scoped(K_TEMPLATES), templates.slice(0, 100));
 }
 
 export function loadChats(): Chat[] {
@@ -117,6 +163,9 @@ export function loadSettings(): Settings {
   if (!merged.ttsVoice) merged.ttsVoice = DEFAULT_SETTINGS.ttsVoice;
   if (!merged.baseUrl) merged.baseUrl = DEFAULT_SETTINGS.baseUrl;
   if (!merged.model) merged.model = DEFAULT_SETTINGS.model;
+  if (merged.mode !== "quick" && merged.mode !== "thinking" && merged.mode !== "auto") merged.mode = "auto";
+  if (typeof merged.instructions !== "string") merged.instructions = "";
+  if (typeof merged.showUsage !== "boolean") merged.showUsage = false;
   return merged;
 }
 

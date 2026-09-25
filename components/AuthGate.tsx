@@ -23,13 +23,15 @@ function toAuthUser(u: User): AuthUser {
 }
 
 /**
- * Real authentication gate:
- *  - No Firebase config  → anonymous mode (works exactly as before).
- *  - Firebase configured → blocks the app behind the login screen until the
- *    user signs in with Google or GitHub; each account gets its own data.
+ * Authentication (no gate):
+ *  - The app ALWAYS renders — nobody is forced to log in.
+ *  - Signed out  → anonymous data (`chatgpt2.*`), "Log in" offered in the sidebar.
+ *  - Signed in   → per-account data (`chatgpt2.u.<uid>.*`), sign-out in the sidebar.
+ *  - No Firebase config → anonymous mode, the Log in button stays hidden.
  */
 export default function AuthGate() {
   const [phase, setPhase] = useState<Phase>({ status: "boot" });
+  const [loginOpen, setLoginOpen] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -63,29 +65,86 @@ export default function AuthGate() {
     // onAuthStateChanged flips the phase.
   };
 
+  /** Email/password sign-in. Returns a message when a verification email is sent. */
+  const signInEmail = async (email: string, password: string): Promise<string | null> => {
+    const { signInWithEmailAndPassword } = await import("firebase/auth");
+    const auth = await getFirebaseAuth();
+    await signInWithEmailAndPassword(auth, email.trim(), password);
+    return null; // onAuthStateChanged flips the phase
+  };
+
+  /** Create a new account and (optionally) send the email verification link. */
+  const signUpEmail = async (name: string, email: string, password: string): Promise<{ verify: boolean }> => {
+    const { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } = await import("firebase/auth");
+    const auth = await getFirebaseAuth();
+    const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    const displayName = name.trim();
+    if (displayName) {
+      await updateProfile(cred.user, { displayName }).catch(() => undefined);
+    }
+    let verify = false;
+    try {
+      await sendEmailVerification(cred.user);
+      verify = true;
+    } catch {
+      // Verification email is best-effort — the account still works.
+    }
+    return { verify };
+  };
+
+  /** Send a password-reset email (works even when signed out). */
+  const resetPassword = async (email: string): Promise<void> => {
+    const { sendPasswordResetEmail } = await import("firebase/auth");
+    const auth = await getFirebaseAuth();
+    await sendPasswordResetEmail(auth, email.trim());
+  };
+
+  /** Persist a custom display name / photo to the Firebase account. */
+  const syncProfile = async (displayName: string, photoDataUrl: string | null) => {
+    const { updateProfile } = await import("firebase/auth");
+    const auth = await getFirebaseAuth();
+    const current = auth.currentUser;
+    if (!current) return;
+    const patch: { displayName?: string; photoURL?: string | null } = {};
+    if (displayName.trim()) patch.displayName = displayName.trim();
+    if (photoDataUrl) patch.photoURL = photoDataUrl;
+    await updateProfile(current, patch);
+  };
+
   const signOut = async () => {
     const { signOut } = await import("firebase/auth");
     const auth = await getFirebaseAuth();
     await signOut(auth);
   };
 
-  if (phase.status === "boot") {
-    return (
-      <div className="auth-splash">
-        <div className="auth-spinner" role="status" aria-label="Loading" />
-      </div>
-    );
-  }
-
-  if (phase.status === "signedOut") {
-    return <LoginScreen onSignIn={signIn} />;
-  }
+  const signedIn = phase.status === "signedIn";
+  const uid = signedIn ? phase.user.uid : null;
 
   return (
-    <ChatApp
-      authUid={phase.status === "signedIn" ? phase.user.uid : null}
-      user={phase.status === "signedIn" ? phase.user : null}
-      onSignOut={signOut}
-    />
+    <>
+      {/* key=uid remounts ChatApp per account, so hydration always re-reads the
+          right namespace when the auth state resolves after boot. */}
+      <ChatApp
+        key={uid ?? "anon"}
+        authUid={uid}
+        user={signedIn ? phase.user : null}
+        onSignOut={phase.status === "anon" ? undefined : signOut}
+        authAvailable={phase.status !== "anon"}
+        onOpenLogin={phase.status === "anon" ? undefined : () => setLoginOpen(true)}
+        onSyncProfile={phase.status === "anon" ? undefined : syncProfile}
+      />
+
+      {loginOpen ? (
+        <LoginScreen
+          variant="modal"
+          onClose={() => setLoginOpen(false)}
+          onSignedIn={() => setLoginOpen(false)}
+          onSignIn={signIn}
+          onSignInEmail={signInEmail}
+          onSignUpEmail={signUpEmail}
+          onResetPassword={resetPassword}
+        />
+      ) : null}
+    </>
   );
 }

@@ -5,7 +5,22 @@ roadmap. ✅ = done, ⬜ = not yet (search the code for `TODO:` markers too).
 
 ## ✅ Implemented
 
-### ChatGPT parity (latest)
+### Latest batch (all requested features)
+- ✅ **File / PDF upload** — server-side parsing route (`app/api/files`) extracts text from PDF, DOCX, text/code/CSV/JSON; images go to the model as vision input. Limits: 6 files, 8 MB each, 60k chars. ChatGPT-style file chips + inline file cards in messages
+- ✅ **Custom instructions (Memory)** — standing instructions in Settings, injected into every conversation's system prompt
+- ✅ **Projects** — named workspaces with shared instructions; chats bind to a project and inherit its context
+- ✅ **Quick / Thinking modes** — Thinking clamps temperature ≤0.6 and raises the output cap to 8k for more careful answers
+- ✅ **Message pin + branch** — pin any message (accent bar) or fork the conversation at that point into a new chat
+- ✅ **Token & cost estimate** — provider usage requested via `stream_options.include_usage`; tokens + estimated USD shown per reply
+- ✅ **Deep Research mode** — real 3-step pipeline: plan 3–5 queries → parallel web search → synthesised cited Markdown report, with live progress stages
+- ✅ **Keyboard navigation** — ↑/↓/Home/End walk the chat list with DOM focus following
+- ✅ **PWA** — manifest, SVG app icon, `appleWebApp` metadata, installable to home screen
+- ✅ **Profile editing** — custom avatar (auto centre-cropped to 256px square), display name, private real name, optional sync to the sign-in provider
+- ✅ **Direct image download** — `/api/image-proxy` streams the file with `Content-Disposition: attachment`, so saving works even when the image CDN sends no CORS headers (SSRF-guarded)
+- ✅ **Responsive image generation** — fluid `clamp()` animation, `object-fit` images capped by viewport height, cheaper blur on mobile, `prefers-reduced-motion` support
+- ✅ **ChatGPT-style favicon** — knot logo as SVG, wired for browsers, iOS and the PWA manifest
+
+### ChatGPT parity
 - ✅ **Message feedback (👍/👎)** — ChatGPT's rating row under every assistant reply; clicking toggles it (click again to clear), persists with the chat, and shows a "Thanks for the feedback!" confirmation
 - ✅ **Share link** — the topbar share button (and the per-message share action) copies a link with the whole conversation gzip-compressed into the URL hash (`#c=…`); opening it imports the conversation as a new chat and cleans the hash. No server or database involved.
 - ✅ **Scroll-to-latest arrow** — a circular down-arrow button appears above the composer whenever the thread is scrolled up, exactly like ChatGPT
@@ -75,10 +90,10 @@ roadmap. ✅ = done, ⬜ = not yet (search the code for `TODO:` markers too).
 - [ ] **Token / cost estimate** per message and per conversation
 
 ### Low priority / polish
-- [ ] **Fork / duplicate a conversation**
-- [ ] **Import Markdown/JSON** conversations
-- [ ] **Keyboard navigation** over the chat list and message actions
-- [ ] **`npm run dev` PWA/manifest** + install prompt
+- [x] **Fork / branch a conversation** — branch from any message into a new chat
+- [x] **Import JSON** conversations (Markdown import still open)
+- [x] **Keyboard navigation** over the chat list
+- [x] **PWA/manifest** + install prompt
 - [ ] **End-to-end test** for the streaming route (`app/api/chat/route.ts`)
 - [ ] **Settings**: system prompt presets, pinned model order, custom free-model list refresh
 
