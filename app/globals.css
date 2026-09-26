@@ -4925,6 +4925,10 @@ html[data-theme="dark"] .tp-stats .over { color: #ff8a80; }
 }
 /* ============================== Landing page ============================= */
 .landing {
+  position: relative;
+  /* Contains the backdrop pseudo-elements and keeps their negative z-index
+     from falling behind the page background. */
+  isolation: isolate;
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
@@ -4937,6 +4941,148 @@ html[data-theme="dark"] .tp-stats .over { color: #ff8a80; }
      `clip` contains the overflow and leaves normal scrolling alone. */
   overflow-x: hidden;
   overflow-x: clip;
+}
+
+
+/* ====================== Landing backdrop, animated ===================== */
+/* Five soft colour blobs drifting behind the landing page.
+
+   Each blob is a radial-gradient fading to transparent, not a blurred element.
+   That is deliberate: filter: blur() over a shape this large forces the browser
+   to re-rasterise a huge surface whenever anything above it changes, whereas a
+   gradient is painted once and then only transformed.
+
+   Every keyframe animates transform alone, so the blobs are composited on the
+   GPU and the animation never touches layout or paint. will-change is set for
+   the same reason. The container is overflow:hidden so a blob drifting past the
+   edge is clipped rather than widening the page.
+
+   Durations are long and all different (29s to 47s) with staggered negative
+   delays, so the composition never visibly repeats. `alternate` means each blob
+   eases out and back rather than snapping to the start, which is what stops it
+   looking like a loop. */
+.land-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  /* Fade out below the fold so sections further down keep a flat background
+     and the page does not turn into wallpaper. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 30%, rgba(0, 0, 0, 0.3) 60%, transparent 82%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 30%, rgba(0, 0, 0, 0.3) 60%, transparent 82%);
+}
+.land-blob {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  will-change: transform;
+  animation: blob-drift var(--dur) var(--ease) infinite alternate;
+  animation-delay: var(--delay);
+}
+@keyframes blob-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(var(--dx), var(--dy), 0) scale(var(--grow, 1.16));
+  }
+}
+/* Slow ease-in-out with a long tail: the blobs spend most of their time
+   coasting and turn quickly through the middle, which reads as liquid. */
+:root {
+  --ease: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+}
+
+.b1 {
+  --dx: 7vw; --dy: -5vh; --dur: 31s; --delay: 0s; --grow: 1.18;
+  width: 62vw; height: 62vw; min-width: 380px; min-height: 380px;
+  top: -14vw; left: -8vw;
+  background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.5) 0%, rgba(99, 102, 241, 0.16) 42%, transparent 70%);
+}
+.b2 {
+  --dx: -6vw; --dy: 6vh; --dur: 43s; --delay: -7s; --grow: 1.12;
+  width: 58vw; height: 58vw; min-width: 340px; min-height: 340px;
+  top: -6vw; right: -10vw;
+  background: radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.44) 0%, rgba(168, 85, 247, 0.14) 44%, transparent 72%);
+}
+.b3 {
+  --dx: 4vw; --dy: 7vh; --dur: 37s; --delay: -14s; --grow: 1.22;
+  width: 54vw; height: 54vw; min-width: 300px; min-height: 300px;
+  top: -10vw; left: 32vw;
+  background: radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.34) 0%, rgba(34, 211, 238, 0.11) 46%, transparent 74%);
+}
+.b4 {
+  --dx: -8vw; --dy: -4vh; --dur: 47s; --delay: -21s; --grow: 1.14;
+  width: 50vw; height: 50vw; min-width: 280px; min-height: 280px;
+  top: 34vh; right: -6vw;
+  background: radial-gradient(circle at 50% 50%, rgba(236, 72, 153, 0.3) 0%, rgba(236, 72, 153, 0.1) 44%, transparent 72%);
+}
+.b5 {
+  --dx: 5vw; --dy: -6vh; --dur: 29s; --delay: -3s; --grow: 1.2;
+  width: 46vw; height: 46vw; min-width: 260px; min-height: 260px;
+  top: 48vh; left: -8vw;
+  background: radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.32) 0%, rgba(59, 130, 246, 0.1) 46%, transparent 72%);
+}
+
+/* Dark theme: the same five, deeper and more saturated, so they read as light
+   falling into a dark room rather than pastel stains. A single filter on the
+   container instead of a second set of rules, which is cheap because the
+   container is static and only its children move. */
+html[data-theme="dark"] .land-blob {
+  filter: saturate(1.5) brightness(0.82);
+}
+
+/* A phone has far fewer pixels and the blobs are sized in vw, so they swamp the
+   screen. Drop two of them and slow the rest, which also cuts compositing cost
+   on the devices least able to afford it. */
+@media (max-width: 620px) {
+  .b4, .b5 { display: none; }
+  .land-blob { --dur: 44s; }
+  .b1, .b2, .b3 { opacity: 0.75; }
+  .land-bg {
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 26%, transparent 72%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 26%, transparent 72%);
+  }
+}
+
+/* Respect the OS setting. Someone who has asked for less motion should get a
+   still page, not a frozen one still holding five composited layers, so
+   will-change is dropped too and the two hidden blobs come back. */
+@media (prefers-reduced-motion: reduce) {
+  .land-blob { animation: none; will-change: auto; }
+  .b4, .b5 { display: block; }
+}
+.landing::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  /* A 180px noise tile, inlined so it costs no request. Kept in the CSS rather
+     than the SVG on purpose: feTurbulence over a full-page surface is
+     re-rasterised on repaint and is visibly slower on low-end phones. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 40%, transparent 86%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 40%, transparent 86%);
+}
+
+/* Text has to stay legible over the blooms, so the bar and the hero get their
+   own stacking position rather than relying on the mesh being pale enough. */
+.landing .land-bar,
+.landing .land-main { position: relative; z-index: 1; }
+
+@media (max-width: 620px) {
+  /* A phone shows the blooms at a much larger apparent scale, so pull them
+     down: at full strength they compete with the headline. */
+  .landing::before { opacity: 0.6; }
+  .landing::after { opacity: 0.35; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .landing::before { display: none; }
 }
 
 .land-bar {

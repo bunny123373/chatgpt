@@ -230,6 +230,28 @@ export default function Landing() {
 
   return (
     <div className="landing">
+      {/*
+        Animated 2D backdrop: five soft colour blobs drifting slowly behind the
+        page.
+
+        Real elements rather than an animated background-image on purpose. CSS
+        keyframes cannot address individual shapes inside a rasterised
+        background, and SMIL inside an SVG used as a background-image does not
+        run reliably across browsers. Separate elements each animate
+        independently, and because every keyframe touches only transform, the
+        whole thing stays on the compositor: no layout, no paint, nothing on the
+        main thread per frame.
+
+        aria-hidden and inert. This is decoration, so it must never be announced
+        and must never intercept a click.
+      */}
+      <div className="land-bg" aria-hidden="true">
+        <span className="land-blob b1" />
+        <span className="land-blob b2" />
+        <span className="land-blob b3" />
+        <span className="land-blob b4" />
+        <span className="land-blob b5" />
+      </div>
       <header className="land-bar">
         <div className="land-brand">
           <ChatGPTLogo size={22} />
