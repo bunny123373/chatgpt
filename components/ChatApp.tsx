@@ -9,6 +9,7 @@ import { convertFileToPdf, convertFileToPdfBlob } from "@/lib/fileToPdf";
 import { buildTextPdf, downloadBlob, pdfFilename } from "@/lib/pdfWriter";
 import { playSound, unlockAudio } from "@/lib/sound";
 import { deleteRemoteChat, syncChats } from "@/lib/sync";
+import ProviderPicker from "./ProviderPicker";
 import Backdrop from "./Backdrop";
 import Library from "./Library";
 import ToolsPage from "./ToolsPage";
@@ -1952,6 +1953,7 @@ useEffect(() => {
             >
               <SidebarIcon />
             </button>
+            <ProviderPicker settings={settings} onChange={setSettings} onNote={notify} />
           </div>
 
           <button className="model-btn" type="button" ref={modelBtnRef} onClick={openModelMenu} title={modelName(settings.model)}>

@@ -113,10 +113,32 @@ export function findProvider(id: string): ProviderDef | undefined {
   return PROVIDERS.find((p) => p.id === id);
 }
 
-/** Guess the provider from a base URL, so a typed URL still gets the right notes. */
+/**
+ * Which preset a base URL corresponds to.
+ *
+ * Matches on hostname, because that is what actually identifies a provider. The
+ * earlier version tried to prefix-match the whole base URL and fell over on a
+ * URL that had been typed with a trailing slash or a different path.
+ */
 export function providerForUrl(url: string): ProviderDef | undefined {
-  const u = url.trim().toLowerCase();
-  if (!u) return undefined;
-  if (u.includes("localhost") || u.includes("127.0.0.1")) return findProvider("freellmapi");
-  return PROVIDERS.find((p) => p.baseUrl !== "http://localhost:3001/v1" && u.startsWith(p.baseUrl.toLowerCase().replace(/^https?:\/\//, "").split("/")[0] ?? ""));
+  const raw = url.trim();
+  if (!raw) return undefined;
+  let host: string;
+  try {
+    host = new URL(raw).hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
+  // Anything on the loopback interface is a self-hosted router, whatever URL the
+  // user typed.
+  if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host === "[::1]") {
+    return findProvider("freellmapi");
+  }
+  return PROVIDERS.find((p) => {
+    try {
+      return new URL(p.baseUrl).hostname.toLowerCase() === host;
+    } catch {
+      return false;
+    }
+  });
 }
