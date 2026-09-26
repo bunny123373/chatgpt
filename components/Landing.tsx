@@ -53,7 +53,21 @@ export default function Landing() {
   const [checking, setChecking] = useState(true);
   const [model, setModel] = useState<string>("");
   const [modelOpen, setModelOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ top: 60, left: 16 });
+  const [menuPos, setMenuPos] = useState({ top: 60, left: 16, up: false });
+
+  /**
+   * Keep the menu on screen: clamp it horizontally, and flip it above the
+   * button when there is not enough room below, which is what happens on short
+   * or landscape phone screens.
+   */
+  const placeMenu = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    const width = Math.min(330, window.innerWidth - 24);
+    const left = Math.min(Math.max(12, r.left), Math.max(12, window.innerWidth - width - 12));
+    const estimated = Math.min(420, window.innerHeight * 0.6);
+    const up = window.innerHeight - r.bottom - 8 < estimated;
+    setMenuPos({ top: up ? r.top - estimated - 8 : r.bottom + 8, left, up });
+  };
 
   // Someone signed in has no business on the landing page.
   useEffect(() => {
@@ -147,8 +161,7 @@ export default function Landing() {
               type="button"
               className="land-model-btn"
               onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect();
-                setMenuPos({ top: r.bottom + 8, left: r.left });
+                placeMenu(e.currentTarget);
                 setModelOpen((v) => !v);
               }}
               aria-haspopup="listbox"
@@ -164,7 +177,7 @@ export default function Landing() {
               <>
                 <div className="land-menu-backdrop" onClick={() => setModelOpen(false)} />
                 <div
-                  className="land-model-menu"
+                  className={`land-model-menu${menuPos.up ? " up" : ""}`}
                   style={{ top: menuPos.top, left: menuPos.left }}
                   role="listbox"
                   aria-label="Choose a model"

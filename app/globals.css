@@ -4911,6 +4911,8 @@ html[data-theme="dark"] .tp-stats .over { color: #ff8a80; }
   flex-direction: column;
   background: var(--bg);
   color: var(--text);
+  /* Nothing on this page may scroll sideways. */
+  overflow-x: hidden;
 }
 
 .land-bar {
@@ -5055,6 +5057,7 @@ html[data-theme="dark"] .land-btn.primary { color: #0f0f0f; }
   box-shadow: 0 16px 44px rgba(0, 0, 0, 0.34);
   animation: acct-pop 0.12s ease;
 }
+.land-model-menu.up { transform-origin: bottom left; }
 .land-model-item {
   display: flex;
   align-items: center;
@@ -5128,6 +5131,30 @@ html[data-theme="dark"] .land-btn.primary { color: #0f0f0f; }
   .land-model-btn { justify-content: space-between; }
   .land-caps { grid-template-columns: 1fr; }
   .land-foot { flex-direction: column; align-items: flex-start; }
+  /* Comfortable tap targets for the header action. */
+  .land-btn.sm { min-height: 40px; padding: 9px 14px; }
+  .land-bar { padding-left: 16px; padding-right: 16px; }
+  /* The model menu is 330px wide, so pin it to the gutter on small screens. */
+  .land-model-menu { left: 12px !important; }
+  .land-eyebrow { margin-bottom: 14px; }
+  .land-sub { margin-bottom: 24px; }
+}
+
+/* Very narrow phones: the two-line hero starts wrapping mid-phrase. */
+@media (max-width: 400px) {
+  .land-title { font-size: 28px; }
+  .land-btn.primary { padding: 13px 18px; font-size: 14.5px; }
+  .land-bar { padding-left: 12px; padding-right: 12px; }
+}
+
+/* Landscape phones: vertical space is the scarce resource. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .land-main { padding-top: 20px; padding-bottom: 20px; }
+  .land-title { font-size: 30px; margin-bottom: 10px; }
+  .land-sub { margin-bottom: 16px; font-size: 14px; }
+  .land-eyebrow { margin-bottom: 10px; }
+  .land-note { margin-top: 12px; }
+  .land-caps { padding-top: 16px; padding-bottom: 16px; }
 }
 
 /* ====================== Chat bubble restyle ============================== */
