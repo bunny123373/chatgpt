@@ -8,6 +8,7 @@ import { printChat } from "@/lib/printChat";
 import { convertFileToPdf, convertFileToPdfBlob } from "@/lib/fileToPdf";
 import { buildTextPdf, downloadBlob, pdfFilename } from "@/lib/pdfWriter";
 import { playSound, unlockAudio } from "@/lib/sound";
+import Backdrop from "./Backdrop";
 import Library from "./Library";
 import ToolsPage from "./ToolsPage";
 import MessageRow from "./MessageRow";
@@ -1761,6 +1762,10 @@ chatsRef.current = chats;
       ) : null}
 
       <main className="main">
+        {/* Same drifting backdrop as the landing page, at a much lower
+            intensity: this one sits behind a transcript, so the colour has
+            to stay out of the way of the text. See components/Backdrop.tsx. */}
+        <Backdrop variant="app" />
         <div className="topbar">
           <div className="cluster">
             <button

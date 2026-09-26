@@ -465,7 +465,10 @@ html[data-theme="light"] .chat-menu > button.del svg {
   flex-direction: column;
   min-width: 0;
   position: relative;
-  background: var(--bg);
+  /* Transparent, not var(--bg), so the drifting backdrop inside it is
+     visible. The colour that used to be painted here is now the html/body
+     background showing through, which is the same value. */
+  background: transparent;
 }
 .topbar {
   position: relative;
@@ -4961,6 +4964,87 @@ html[data-theme="dark"] .tp-stats .over { color: #ff8a80; }
    delays, so the composition never visibly repeats. `alternate` means each blob
    eases out and back rather than snapping to the start, which is what stops it
    looking like a loop. */
+/* ---------- Backdrop inside the chat view ------------------------------ */
+/* Same blobs as the landing page, deliberately much quieter. This one sits
+   behind a transcript rather than behind a headline, so the rules are
+   different in three ways:
+
+   1. Overall opacity is a third of the landing page's. Colour behind body copy
+      is the fastest way to make a paragraph hard to read, and this text is
+      long-form rather than a single line.
+   2. The blobs are pushed out to the corners and mostly off-canvas. On the
+      landing page they sit behind the headline, where nothing else competes;
+      here they hug the edges, so the centre column where the conversation
+      actually lives stays close to flat.
+   3. No bottom fade. The chat is one fixed-height pane rather than a scrolling
+      page, so fading the backdrop out toward the bottom would just leave the
+      lower half of the window flat and look like a rendering fault.
+
+   The backdrop is the first child of .main and .main is position:relative, so
+   at z-index 0 it paints beneath the topbar, thread and composer, all of which
+   come after it in the DOM. */
+.land-bg.land-bg-app {
+  /* Doubled selector on purpose. .land-bg and .land-bg-app are both single
+     classes, so at equal specificity the later one in the file wins, and
+     .land-bg sets a bottom fade this variant needs to cancel. Bumping to
+     two classes makes the override independent of source order. */
+  opacity: 0.34;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+/* Corner-weighted placement for the app variant. Same --dx/--dy, so they still
+   drift, just from and toward the edges. */
+.land-bg-app .b1 {
+  top: -26vw;
+  left: -20vw;
+  width: 58vw;
+  height: 58vw;
+}
+.land-bg-app .b2 {
+  top: -22vw;
+  right: -22vw;
+  width: 54vw;
+  height: 54vw;
+}
+.land-bg-app .b3 {
+  top: 30vh;
+  left: -26vw;
+  width: 48vw;
+  height: 48vw;
+}
+.land-bg-app .b4 {
+  top: 46vh;
+  right: -24vw;
+  width: 46vw;
+  height: 46vw;
+}
+.land-bg-app .b5 {
+  top: 62vh;
+  left: 12vw;
+  width: 40vw;
+  height: 40vw;
+  opacity: 0.7;
+}
+
+/* The transcript needs a readable floor under it whatever the blobs are doing.
+   A very light scrim in the page colour, painted over the backdrop and under
+   the text, guarantees contrast without visibly flattening the effect: at this
+   strength you read it as depth, not as a grey sheet. */
+.land-bg-app::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.1));
+}
+html[data-theme="light"] .land-bg-app::after {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.62));
+}
+
+/* The topbar keeps its own opaque background, so the strip stays legible and
+   the blobs do not fight the model picker or the icon buttons. */
+.main > .topbar { position: relative; z-index: 2; }
 .land-bg {
   position: absolute;
   inset: 0;
