@@ -65,7 +65,7 @@ export default function SettingsModal({
   const [syncing, setSyncing] = useState(false);
   const avatarInput = useRef<HTMLInputElement | null>(null);
   // Provider probe: connection result plus whatever /models returned.
-  const [probe, setProbe] = useState<{ ok: boolean; error?: string; status?: number; count?: number; models?: string[]; busy?: boolean } | null>(null);
+  const [probe, setProbe] = useState<{ ok: boolean; error?: string; status?: number; count?: number; total?: number; freeOnly?: boolean; models?: string[]; busy?: boolean } | null>(null);
   const [fetchingModels, setFetchingModels] = useState(false);
   const provider = providerForUrl(settings.baseUrl);
 
@@ -164,7 +164,7 @@ export default function SettingsModal({
           "x-base-url": settings.baseUrl.trim(),
         },
       });
-      const d = (await r.json()) as { ok: boolean; error?: string; status?: number; count?: number; models?: string[] };
+      const d = (await r.json()) as { ok: boolean; error?: string; status?: number; count?: number; total?: number; freeOnly?: boolean; models?: string[] };
       setProbe(d);
       // A working provider is a good moment to adopt its model list, but only
       // if the current model is not one it serves, so a working setup is never
@@ -295,7 +295,7 @@ export default function SettingsModal({
               {probe && !probe.busy ? (
                 <p className={`probe ${probe.ok ? "ok" : "bad"}`} role="status">
                   {probe.ok
-                    ? `Connected. ${probe.count ?? 0} model${probe.count === 1 ? "" : "s"} available.`
+                    ? `Connected. ${probe.count ?? 0} free model${probe.count === 1 ? "" : "s"}${probe.total && probe.total > (probe.count ?? 0) ? `, free only, out of ${probe.total}` : ""}.`
                     : `${probe.error ?? "Could not connect."}${probe.status ? ` (HTTP ${probe.status})` : ""}`}
                 </p>
               ) : null}
@@ -321,7 +321,7 @@ export default function SettingsModal({
                 {probe?.ok && probe.models?.length ? (
                   <>
                     <p className="set-desc">
-                      {probe.models.length} model{probe.models.length === 1 ? "" : "s"} from your provider.
+                      {probe.models.length} free model{probe.models.length === 1 ? "" : "s"}{probe.total && probe.total > probe.models.length ? ` (of ${probe.total}; the rest cost money)` : ""} from your provider.
                     </p>
                     <div className="model-grid">
                       {probe.models.slice(0, 60).map((m) => (

@@ -21,7 +21,12 @@ export const dynamic = "force-dynamic";
  */
 
 interface ModelListResponse {
-  data?: { id?: string }[];
+  /**
+   * OpenRouter returns a pricing object per model, with prompt and completion
+   * as decimal strings. "0" on both means the model is free. Providers that
+   * do not return pricing leave it undefined and nothing is filtered.
+   */
+  data?: { id?: string; pricing?: { prompt?: string; completion?: string } }[];
 }
 
 export async function GET(req: Request) {
@@ -94,11 +99,34 @@ export async function GET(req: Request) {
     }
 
     const json = (await res.json()) as ModelListResponse;
-    const models = Array.isArray(json.data)
+    const all = Array.isArray(json.data)
       ? [...new Set(json.data.map((m) => m?.id).filter((id): id is string => typeof id === "string" && id.length > 0))].sort()
       : [];
 
-    return NextResponse.json({ ok: true, count: models.length, models: models.slice(0, 400) });
+    // Free-only, but only when the provider actually tells us the price.
+    //
+    // Testing the pricing fields rather than matching the ":free" suffix,
+    // because the suffix is a convention some providers follow and others do
+    // not, while a zero price is the actual thing being asked for. A provider
+    // that sends no pricing is left alone rather than having everything filtered
+    // out, which would look like the provider offered nothing.
+    const priced = json.data?.filter((m) => m?.pricing && typeof m.pricing === "object").length ?? 0;
+    const freeOnly = priced > 0;
+    const models = freeOnly
+      ? all.filter((id) => {
+          const m = json.data?.find((d) => d?.id === id);
+          const p = m?.pricing;
+          return p && Number(p.prompt) === 0 && Number(p.completion) === 0;
+        })
+      : all;
+
+    return NextResponse.json({
+      ok: true,
+      count: models.length,
+      total: all.length,
+      freeOnly,
+      models: models.slice(0, 400),
+    });
   } catch (e) {
     const aborted = e instanceof Error && e.name === "AbortError";
     return NextResponse.json(

@@ -82,7 +82,9 @@ export const PROVIDERS: ProviderDef[] = [
     label: "OpenRouter",
     keyUrl: "https://openrouter.ai/keys",
     baseUrl: "https://openrouter.ai/api/v1",
-    defaultModel: "anthropic/claude-sonnet-4.5",
+    // A free id, since this preset is free-only. The Test button replaces it with
+    // whatever the provider actually lists, so this is just a safe starting point.
+    defaultModel: "meta-llama/llama-3.3-70b-instruct:free",
     supports: {
       chat: true,
       // OpenRouter aggregates many models, and some of them have a web-search
