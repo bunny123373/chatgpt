@@ -180,6 +180,10 @@ export default function ChatApp({
   const authRequired = authAvailable && !user;
 
   const [chats, setChats] = useState<Chat[]>([]);
+// Mirror of `chats` so async work after a send can read the latest messages
+// without depending on a re-render having happened.
+const chatsRef = useRef<Chat[]>([]);
+chatsRef.current = chats;
   const [projects, setProjects] = useState<Project[]>([]);
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   // Canvas side panel document.
@@ -491,23 +495,6 @@ export default function ChatApp({
     }
 
     const userMsg: Msg = { id: uid(), role: "user", content: question };
-    // A URL pasted into the draft that turned out to be an image: attach it so
-    // the model can see it, and keep the reference so the message can show
-    // download and convert controls.
-    // The ref, not the state: the bubble click sends in the same tick.
-    const linked = linkedImageRef.current;
-    if (linked) {
-      // Prefer the inlined data URL: a vision endpoint has to be able to reach
-      // the remote URL itself, and usually cannot. Fall back to the URL when
-      // the image was too big to inline.
-      userMsg.image = linked.dataUrl || linked.url;
-      userMsg.imageRef = {
-        url: linked.url,
-        filename: linked.filename,
-        type: linked.type,
-        dataUrl: linked.dataUrl,
-      };
-    }
     const replyId = uid();
     const ac = new AbortController();
     abortRef.current = ac;
@@ -1500,6 +1487,21 @@ export default function ChatApp({
         ...(attach ? { image: attach } : {}),
         ...(docs ? { files: docs } : {}),
       };
+      // An image URL found in the draft by the "Ask about this image" bubble.
+      // Read from the ref, not the state, so the click can send in one tick.
+      // The inlined data URL is preferred: a vision endpoint has to be able to
+      // reach the remote URL itself, and usually cannot. Fall back to the URL
+      // when the image was too large to inline.
+      const linked = linkedImageRef.current;
+      if (linked) {
+        userMsg.image = linked.dataUrl || linked.url;
+        userMsg.imageRef = {
+          url: linked.url,
+          filename: linked.filename,
+          type: linked.type,
+          dataUrl: linked.dataUrl,
+        };
+      }
       history = [...((active?.messages ?? []) as Msg[]), userMsg];
 
       const id = chatId;
@@ -1520,7 +1522,12 @@ export default function ChatApp({
       setInput("");
       setAttach(null);
       setPendingFiles([]);
-      void runStream(id, history);
+      const hadImage = Boolean(userMsg.image) || Boolean(docs?.some((f) => f.dataUrl));
+      void runStream(id, history).then(() => {
+        if (!hadImage) return;
+        const reply = chatsRef.current.find((c) => c.id === id)?.messages.at(-1)?.content ?? "";
+        warnIfVisionRefused(reply, true);
+      });
 
       // ChatGPT names the conversation from its first user message.
       if (isFirst) void autoTitle(id, text || docs?.[0]?.name || "New chat");
@@ -1542,6 +1549,23 @@ export default function ChatApp({
       settings.model,
       user,
     ]
+  );
+
+  /**
+   * Not all models can see images. When we definitely attached one and the
+   * reply says otherwise, say so plainly instead of leaving the user to guess
+   * whether the image failed to upload or the model is the limitation.
+   */
+  const warnIfVisionRefused = useCallback(
+    (text: string, attachedImage: boolean) => {
+      if (!attachedImage) return;
+      if (!/(cannot|can't|can not|unable to|don't have the capability)\s+(view|see|access|process|analy[sz]e)|not able to (view|see|process)|text-based/i.test(text)) {
+        return;
+      }
+      if (!/image|visual|photo|picture|url|link/i.test(text)) return;
+      notify("The image was sent, but this model may not support images. Try a vision-capable model from the picker.");
+    },
+    [notify]
   );
 
   const regenerate = useCallback(() => {
