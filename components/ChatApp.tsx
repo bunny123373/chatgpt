@@ -645,8 +645,8 @@ chatsRef.current = chats;
   }, [settings.sound]);
 
   /**
-   * Deep links from the landing page, e.g. /chat?tools=colour or
-   * /chat?tools=image&dir=download. Read from location.search rather than
+   * Deep links from the landing page, e.g. /tools/colour or
+   * /tools/image&dir=download. Read from location.search rather than
    * useSearchParams so no Suspense boundary is needed.
    */
   useEffect(() => {

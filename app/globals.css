@@ -6233,4 +6233,125 @@ a:focus-visible,
      name in a phone header is worse than no name. */
   .land-user-name { display: none; }
   .land-user { max-width: none; }
+}/* ====================== Standalone tool pages =========================== */
+/* /tools/<id>: one tool per URL, outside the chat. Reuses the .tp-* styles the
+   Tools panel already defines, so a tool looks identical in both places. */
+.toolpage {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: clip;
+}
+.toolpage-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px clamp(16px, 5vw, 40px);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  /* Opaque, because the content scrolls under it. A translucent bar over
+     scrolling text is unreadable however good the blur. */
+  background: var(--bg);
+}
+.toolpage-main {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: clamp(22px, 5vw, 40px) clamp(14px, 4vw, 28px) clamp(48px, 9vw, 80px);
+}
+.toolpage-head {
+  margin-bottom: 18px;
+}
+.toolpage-title {
+  margin: 0 0 6px;
+  font-size: clamp(23px, 4.6vw, 32px);
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.toolpage-blurb {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 62ch;
+}
+.toolpage-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.toolpage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--an-ease, 999px);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 560;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.toolpage-chip:hover {
+  background: var(--hover);
+  color: var(--text);
+  border-color: var(--border2);
+}
+.toolpage-chip.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.toolpage-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.toolpage-note {
+  margin: 34px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+}
+.toolpage-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: min(440px, calc(100vw - 28px));
+  padding: 11px 17px;
+  border-radius: 12px;
+  border: 1px solid var(--border2);
+  background: var(--panel2);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
+  z-index: 60;
+  /* A short fade rather than none, so a message that appears and vanishes does
+     not flicker. The element stays mounted so it can transition at all. */
+  transition: opacity 0.18s ease;
+  box-shadow: 0 8px 28px -10px rgba(0, 0, 0, 0.5);
+  /* The toast is purely informational and never needs a click. Without this the
+     always-mounted element is a fixed 440px box that silently swallows taps on
+     whatever sits beneath it, whether it is visible or not. */
+  pointer-events: none;
+}
+@media (max-width: 620px) {
+  .toolpage-chip { padding: 6px 10px; font-size: 12.5px; }
 }

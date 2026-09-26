@@ -28,18 +28,21 @@ import {
 import { coerceRows, parseCsv as parseCsvRows, useSandbox } from "@/lib/sandbox";
 import { ColourTools as ColourTab, ImageDownloader, QrTools as QrTab, UrlTools as UrlTab } from "./ToolTabs";
 import { useDismiss } from "@/lib/useDismiss";
+import { TOOL_META, type ToolId } from "@/lib/toolMeta";
+import { TOOL_ICONS } from "./toolIcons";
 
-type Tab = "pdf" | "image" | "colour" | "qr" | "url" | "data" | "make";
+/** The tab id, re-exported so existing references in this file keep working. */
+export type Tab = ToolId;
 
-const TABS: { id: Tab; label: string; icon: (p: { size?: number }) => ReactElement }[] = [
-  { id: "pdf", label: "PDF", icon: PdfIcon },
-  { id: "image", label: "Image", icon: ImageIcon },
-  { id: "colour", label: "Colours", icon: TemplateIcon },
-  { id: "qr", label: "QR codes", icon: WrenchIcon },
-  { id: "url", label: "URL tools", icon: SearchIcon },
-  { id: "data", label: "Data", icon: FileIcon },
-  { id: "make", label: "Generate", icon: SearchIcon },
-];
+/**
+ * The tool list, derived from the shared metadata plus the icon map rather than
+ * restated. Two hand-maintained lists drift, and the symptom is a tool that
+ * exists in the panel but has no page, or a page with no icon.
+ */
+export const TABS: { id: Tab; label: string; blurb: string; icon: (p: { size?: number }) => ReactElement }[] = TOOL_META.map((t) => ({
+  ...t,
+  icon: TOOL_ICONS[t.id] as (p: { size?: number }) => ReactElement,
+}));
 
 /* ============================== PDF tools =============================== */
 
@@ -363,7 +366,7 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
   );
 }
 
-function PdfTools({ notify }: { notify: (m: string) => void }) {
+export function PdfTools({ notify }: { notify: (m: string) => void }) {
   const [dir, setDir] = useState<PdfDir>("imagesToPdf");
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<{ name: string; ok: boolean; msg: string }[]>([]);
@@ -590,7 +593,7 @@ function PdfTools({ notify }: { notify: (m: string) => void }) {
 
 /* ============================ Image tools =============================== */
 
-function ImageTools({ notify, initialDir }: { notify: (m: string) => void; initialDir?: "edit" | "download" }) {
+export function ImageTools({ notify, initialDir }: { notify: (m: string) => void; initialDir?: "edit" | "download" }) {
   const [dir, setDir] = useState<"edit" | "download">(initialDir ?? "edit");
   const [src, setSrc] = useState<HTMLImageElement | null>(null);
   const [name, setName] = useState("image");
@@ -860,7 +863,7 @@ for (const c of cols) {
 }
 `;
 
-function DataTools({ notify }: { notify: (m: string) => void }) {
+export function DataTools({ notify }: { notify: (m: string) => void }) {
   const [csv, setCsv] = useState("");
   const [code, setCode] = useState(DEFAULT_CODE);
   const { run, running } = useSandbox();
@@ -939,7 +942,7 @@ function DataTools({ notify }: { notify: (m: string) => void }) {
 
 /* ============================== Generate ================================ */
 
-interface GenProps {
+export interface GenProps {
   model: string;
   apiKey: string;
   baseUrl: string;
@@ -947,7 +950,7 @@ interface GenProps {
   notify: (m: string) => void;
 }
 
-function GenerateTools({ model, apiKey, baseUrl, signedIn, notify }: GenProps) {
+export function GenerateTools({ model, apiKey, baseUrl, signedIn, notify }: GenProps) {
   const [kind, setKind] = useState<"doc" | "image">("doc");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);

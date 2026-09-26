@@ -78,7 +78,7 @@ interface ToolGroup {
   items: ToolItem[];
 }
 
-/** Deep links: /chat?tools=<tab> opens the Tools page on that tab. */
+/** Deep links: /tools/<tab> opens the Tools page on that tab. */
 const TOOL_GROUPS: ToolGroup[] = [
   {
     title: "Chat",
@@ -103,8 +103,8 @@ const TOOL_GROUPS: ToolGroup[] = [
     tone: "teal",
     items: [
       { label: "Create an image", href: "/chat?img=1" },
-      { label: "Download from a URL", href: "/chat?tools=image&dir=download" },
-      { label: "Convert and resize", href: "/chat?tools=image" },
+      { label: "Download from a URL", href: "/tools/image&dir=download" },
+      { label: "Convert and resize", href: "/tools/image" },
       { label: "Image variations", href: "/chat" },
       { label: "Library of past images", href: "/chat" },
     ],
@@ -115,9 +115,9 @@ const TOOL_GROUPS: ToolGroup[] = [
     icon: PdfIcon,
     tone: "amber",
     items: [
-      { label: "Anything to PDF", href: "/chat?tools=pdf" },
-      { label: "Images to one PDF", href: "/chat?tools=pdf" },
-      { label: "PDF to page images", href: "/chat?tools=pdf" },
+      { label: "Anything to PDF", href: "/tools/pdf" },
+      { label: "Images to one PDF", href: "/tools/pdf" },
+      { label: "PDF to page images", href: "/tools/pdf" },
       { label: "Export a chat as PDF", href: "/chat" },
       { label: "Attach PDF, DOCX or code", href: "/chat" },
     ],
@@ -128,7 +128,7 @@ const TOOL_GROUPS: ToolGroup[] = [
     icon: CanvasIcon,
     tone: "rose",
     items: [
-      { label: "CSV analysis sandbox", href: "/chat?tools=data" },
+      { label: "CSV analysis sandbox", href: "/tools/data" },
       { label: "Canvas", href: "/chat" },
       { label: "Import and export chats", href: "/chat?settings=data" },
     ],
@@ -139,9 +139,9 @@ const TOOL_GROUPS: ToolGroup[] = [
     icon: WrenchIcon,
     tone: "green",
     items: [
-      { label: "Colour and contrast check", href: "/chat?tools=colour" },
-      { label: "QR code generator", href: "/chat?tools=qr" },
-      { label: "URL parser and builder", href: "/chat?tools=url" },
+      { label: "Colour and contrast check", href: "/tools/colour" },
+      { label: "QR code generator", href: "/tools/qr" },
+      { label: "URL parser and builder", href: "/tools/url" },
     ],
   },
   {
