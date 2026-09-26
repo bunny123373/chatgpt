@@ -262,136 +262,136 @@ function MessageRow({
   );
 
   /**
-   * Copy/edit, and the thumbs up/down pair.
+   * Copy, edit, share, pin, branch, delete.
    *
-   * These used to be the last children of .body, which put them INSIDE the
-   * bubble: for a sent message the controls were drawn on top of the coloured
-   * fill, and they inflated the pill's height. They now sit outside .body, in
-   * the same footer gutter as the metadata, so the bubble contains the message
-   * and nothing else.
+   * These were the last children of .body, which drew them INSIDE the bubble,
+   * on top of the coloured fill. They are now outside it.
+   *
+   * A sent message puts them in a gutter to the LEFT of the bubble, vertically
+   * centred, which is where ChatGPT puts them. That matters for width: a sent
+   * message carries six buttons, about 178px, while a bubble for ""hi"" is
+   * only about 48px. In a right-aligned footer the button row would jut out
+   * some 130px to the left of its own bubble. Beside the bubble they occupy
+   * their own space instead and cannot stretch it.
    */
-  const controls = (
-    <>
-      {!busy && !empty ? (
-        <div className="msg-actions" role="group" aria-label="Message actions">
-          <button type="button" title="Copy" aria-label="Copy" onClick={() => onCopy(msg.content)}>
-            <CopyIcon size={15} />
-          </button>
-          {isUser && onEdit ? (
-            <button
-              type="button"
-              title="Edit"
-              aria-label="Edit"
-              onClick={() => {
-                setDraft(msg.content);
-                setEditing(true);
-              }}
-            >
-              <PencilIcon size={15} />
-            </button>
-          ) : null}
-          {!isUser && !busy && !empty ? (
-            <button
-              type="button"
-              title={speaking ? "Stop reading aloud" : "Read this reply aloud"}
-              aria-label={speaking ? "Stop reading aloud" : "Read this reply aloud"}
-              className={speaking ? "active" : ""}
-              onClick={toggleSpeak}
-            >
-              {speaking ? <SpeakerOffIcon size={15} /> : <SpeakerIcon size={15} />}
-            </button>
-          ) : null}
-          {!isUser && onRegenerate ? (
-            <button type="button" title="Regenerate" aria-label="Regenerate" onClick={onRegenerate}>
-              <RefreshIcon size={15} />
-            </button>
-          ) : null}
-          {onDelete ? (
-            <button type="button" className="del" title="Delete" aria-label="Delete" onClick={onDelete}>
-              <TrashIcon size={15} />
-            </button>
-          ) : null}
-          {onShare ? (
-            <button type="button" title="Share" aria-label="Share" onClick={onShare}>
-              <ShareIcon size={15} />
-            </button>
-          ) : null}
-          {onPin ? (
-            <button
-              type="button"
-              className={msg.pinned ? "active" : ""}
-              title={msg.pinned ? "Unpin message" : "Pin message"}
-              aria-label={msg.pinned ? "Unpin message" : "Pin message"}
-              aria-pressed={!!msg.pinned}
-              onClick={onPin}
-            >
-              <PinIcon size={15} />
-            </button>
-          ) : null}
-          {onBranch ? (
-            <button
-              type="button"
-              title="Branch into a new chat from here"
-              aria-label="Branch into a new chat from here"
-              onClick={onBranch}
-            >
-              <BranchIcon size={15} />
-            </button>
-          ) : null}
-          {onCanvas ? (
-            <button
-              type="button"
-              title="Open in Canvas"
-              aria-label="Open in Canvas"
-              onClick={onCanvas}
-            >
-              <CanvasIcon size={15} />
-            </button>
-          ) : null}
-          {onVary ? (
-            <button
-              type="button"
-              title="Generate a variation"
-              aria-label="Generate a variation of this image"
-              onClick={onVary}
-            >
-              <VariateIcon size={15} />
-            </button>
-          ) : null}
-        </div>
+  const actions = !busy && !empty ? (
+    <div className="msg-actions" role="group" aria-label="Message actions">
+      <button type="button" title="Copy" aria-label="Copy" onClick={() => onCopy(msg.content)}>
+        <CopyIcon size={15} />
+      </button>
+      {isUser && onEdit ? (
+        <button
+          type="button"
+          title="Edit"
+          aria-label="Edit"
+          onClick={() => {
+            setDraft(msg.content);
+            setEditing(true);
+          }}
+        >
+          <PencilIcon size={15} />
+        </button>
       ) : null}
+      {!isUser && !busy && !empty ? (
+        <button
+          type="button"
+          title={speaking ? "Stop reading aloud" : "Read this reply aloud"}
+          aria-label={speaking ? "Stop reading aloud" : "Read this reply aloud"}
+          className={speaking ? "active" : ""}
+          onClick={toggleSpeak}
+        >
+          {speaking ? <SpeakerOffIcon size={15} /> : <SpeakerIcon size={15} />}
+        </button>
+      ) : null}
+      {!isUser && onRegenerate ? (
+        <button type="button" title="Regenerate" aria-label="Regenerate" onClick={onRegenerate}>
+          <RefreshIcon size={15} />
+        </button>
+      ) : null}
+      {onDelete ? (
+        <button type="button" className="del" title="Delete" aria-label="Delete" onClick={onDelete}>
+          <TrashIcon size={15} />
+        </button>
+      ) : null}
+      {onShare ? (
+        <button type="button" title="Share" aria-label="Share" onClick={onShare}>
+          <ShareIcon size={15} />
+        </button>
+      ) : null}
+      {onPin ? (
+        <button
+          type="button"
+          className={msg.pinned ? "active" : ""}
+          title={msg.pinned ? "Unpin message" : "Pin message"}
+          aria-label={msg.pinned ? "Unpin message" : "Pin message"}
+          aria-pressed={!!msg.pinned}
+          onClick={onPin}
+        >
+          <PinIcon size={15} />
+        </button>
+      ) : null}
+      {onBranch ? (
+        <button
+          type="button"
+          title="Branch into a new chat from here"
+          aria-label="Branch into a new chat from here"
+          onClick={onBranch}
+        >
+          <BranchIcon size={15} />
+        </button>
+      ) : null}
+      {onCanvas ? (
+        <button
+          type="button"
+          title="Open in Canvas"
+          aria-label="Open in Canvas"
+          onClick={onCanvas}
+        >
+          <CanvasIcon size={15} />
+        </button>
+      ) : null}
+      {onVary ? (
+        <button
+          type="button"
+          title="Generate a variation"
+          aria-label="Generate a variation of this image"
+          onClick={onVary}
+        >
+          <VariateIcon size={15} />
+        </button>
+      ) : null}
+    </div>
+  ) : null;
 
-      {!isUser && !busy && !empty && onFeedback ? (
-        <div className="msg-feedback" role="group" aria-label="Rate this response">
-          <button
-            type="button"
-            className={msg.feedback === "up" ? "active up" : ""}
-            title="Good response"
-            aria-label="Good response"
-            aria-pressed={msg.feedback === "up"}
-            onClick={() => onFeedback(msg.feedback === "up" ? null : "up")}
-          >
-            <ThumbUpIcon size={14} />
-          </button>
-          <button
-            type="button"
-            className={msg.feedback === "down" ? "active down" : ""}
-            title="Bad response"
-            aria-label="Bad response"
-            aria-pressed={msg.feedback === "down"}
-            onClick={() => onFeedback(msg.feedback === "down" ? null : "down")}
-          >
-            <ThumbDownIcon size={14} />
-          </button>
-          {msg.feedback ? (
-            <span className="thanks" role="status">
-              {msg.feedback === "up" ? "Thanks for the feedback!" : "Thanks — we'll use it to improve."}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-    </>
-  );
+  const feedback = !isUser && !busy && !empty && onFeedback ? (
+  <div className="msg-feedback" role="group" aria-label="Rate this response">
+    <button
+      type="button"
+      className={msg.feedback === "up" ? "active up" : ""}
+      title="Good response"
+      aria-label="Good response"
+      aria-pressed={msg.feedback === "up"}
+      onClick={() => onFeedback(msg.feedback === "up" ? null : "up")}
+    >
+      <ThumbUpIcon size={14} />
+    </button>
+    <button
+      type="button"
+      className={msg.feedback === "down" ? "active down" : ""}
+      title="Bad response"
+      aria-label="Bad response"
+      aria-pressed={msg.feedback === "down"}
+      onClick={() => onFeedback(msg.feedback === "down" ? null : "down")}
+    >
+      <ThumbDownIcon size={14} />
+    </button>
+    {msg.feedback ? (
+      <span className="thanks" role="status">
+        {msg.feedback === "up" ? "Thanks for the feedback!" : "Thanks — we'll use it to improve."}
+      </span>
+    ) : null}
+  </div>
+  ) : null;
 
   /**
    * Message metadata: which model answered, which tools it called, token/cost.
@@ -437,11 +437,11 @@ function MessageRow({
 
   return (
     <div className={`msg ${isUser ? "user msg-sent" : "assistant"}${busy ? " msg-streaming" : ""}${msg.pinned ? " pinned" : ""}`}>
-      <div className="msg-col">
+      <div className="msg-row">
         {isUser ? (
           <>
+            <div className="msg-gutter">{actions}</div>
             {body}
-            <div className="who">{initial}</div>
           </>
         ) : (
           <>
@@ -451,10 +451,11 @@ function MessageRow({
             {body}
           </>
         )}
-        <div className="msg-foot">
-          {meta}
-          {controls}
-        </div>
+      </div>
+      <div className="msg-foot">
+        {meta}
+        {!isUser ? actions : null}
+        {feedback}
       </div>
     </div>
   );

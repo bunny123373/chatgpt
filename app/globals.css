@@ -546,7 +546,8 @@ html[data-theme="light"] .chat-menu > button.del svg {
   display: none;
 }
 .msg.user {
-  justify-content: flex-end;
+  /* .msg is a column, so the right-alignment lives on align-items
+     (cross axis) further down, next to .msg-row. Kept here as a marker. */
 }
 .msg .body {
   flex: 1;
@@ -5211,25 +5212,67 @@ html[data-theme="dark"] .land-btn.primary { color: #0f0f0f; }
    opacity:0, which still reserves layout space, so every sent message was pushed
    left of the right edge by an invisible ~90px button row. Stacking them puts
    the controls below the bubble, outside its fill, and costs no width at all. */
-.msg-col {
+/* .msg is a COLUMN: row 1 is the bubble, row 2 is the footer. Keeping them as
+   separate rows is the whole point. When the footer sat inside the same column
+   as the bubble, the column sized itself to the widest child, and the widest
+   child was the ~210px row of opacity:0 action buttons, so every sent bubble
+   was stretched to button-row width no matter how short the message was.
+   Separate rows means the bubble row shrink-wraps the text and the footer row
+   is free to be as wide as it likes without touching it. */
+.msg { flex-direction: column; }
+.msg-row {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
   min-width: 0;
   max-width: 100%;
 }
-.msg.assistant .msg-col { flex: 1; }
-/* Sent messages shrink to the bubble and keep it hard against the right edge. */
-.msg.user .msg-col { flex: 0 1 auto; }
+.msg.assistant .msg-row { flex: 1; }
+/* Sent messages shrink-wrap the bubble and hold it against the right edge. */
+.msg.user .msg-row { flex: 0 1 auto; justify-content: flex-end; }
+/* Right-align a sent bubble. .msg is a column now, so this is align-items on
+   the cross axis, not justify-content. */
+.msg.user { align-items: flex-end; }
+
+/* Sent messages put their controls in a gutter to the LEFT of the bubble,
+   vertically centred, which is where ChatGPT puts them.
+   The width is the reason. A sent message carries six buttons, about 178px,
+   while the bubble for a two-character message is about 48px. In a
+   right-aligned footer that button row would jut out around 130px to the left
+   of its own bubble. Beside the bubble the controls take their own space and
+   cannot stretch it, and the bubble stays flush right because .msg-row is
+   justify-content: flex-end. */
+.msg-gutter {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.msg.user .msg-row { gap: 8px; }
+.msg-gutter .msg-actions { align-self: center; margin-top: 0; }
+
+/* Narrow screens: a 178px gutter plus a 90%-wide bubble overflows a phone, so
+   the controls drop back under the bubble. There the bubble is nearly full
+   width, so the button row sits under it without protruding. column-reverse
+   puts the bubble first and the controls second, matching DOM order for the
+   sent case only. */
+@media (max-width: 620px) {
+  .msg.user .msg-row {
+    flex-direction: column-reverse;
+    align-items: flex-end;
+    gap: 4px;
+  }
+  .msg-gutter .msg-actions { align-self: flex-end; }
+}
 /* Line the controls up with the left edge of the bubble above them, which is
    where ChatGPT puts them. align-self keeps them from stretching across a wide
    reply. */
 .msg-actions { align-self: flex-start; }
 
-/* .body carried flex: 1 from when it was a direct child of the row. Inside
-   this column that would mean flex-grow along the BLOCK axis, so the bubble
-   could collapse toward zero height. Pin it to content size in both axes:
-   flex-grow 0, flex-shrink 0, basis auto. Nothing may stretch or squash it. */
-.msg-col > .body { flex: 0 0 auto; }
+/* .body is a row child again, so the inherited flex: 1 grows it to full width
+   for a reply, which is what we want, and .msg.user .body overrides it to
+   0 1 auto so a sent bubble shrink-wraps. min-width:0 lets it still shrink
+   on a narrow screen instead of overflowing. */
+.msg-row > .body { min-width: 0; }
 
 /* One footer line under the message holding the metadata and the controls.
    Previously .msg-actions and .msg-feedback were the last children of .body,
