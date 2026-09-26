@@ -6207,4 +6207,30 @@ a:focus-visible,
 .set-legal-links a:hover {
   color: var(--text);
   border-bottom-color: var(--border2);
+}.land-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 190px;
+}
+.land-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  object-fit: cover;
+}
+.land-user-name {
+  font-size: 13.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 620px) {
+  /* The name is a nicety; the avatar alone carries the state, and a truncated
+     name in a phone header is worse than no name. */
+  .land-user-name { display: none; }
+  .land-user { max-width: none; }
 }

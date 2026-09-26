@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import Backdrop from "./Backdrop";
 import { MODELS } from "@/lib/types";
 import { SITE_NAME } from "@/lib/site";
+import { useAuth } from "@/lib/useAuth";
+import LoginScreen from "./LoginScreen";
 import {
   ArrowIcon,
   CanvasIcon,
@@ -157,6 +159,9 @@ const TOOL_GROUPS: ToolGroup[] = [
 
 export default function Landing() {
   const router = useRouter();
+  // True until the auth state resolves. It gates ONLY the sign-in button, so a
+  // sign-in control never flashes on a site where auth is unavailable. It must
+  // never gate navigation.
   const [checking, setChecking] = useState(true);
   const [model, setModel] = useState<string>("");
   const [modelOpen, setModelOpen] = useState(false);
@@ -176,31 +181,24 @@ export default function Landing() {
     setMenuPos({ top: up ? r.top - estimated - 8 : r.bottom + 8, left, up });
   };
 
-  // Someone signed in has no business on the landing page.
+  /**
+   * Sign-in state, shared with the app through lib/useAuth.
+   *
+   * This used to redirect a signed-in visitor to /chat. It does not any more,
+   * for two reasons. The redirect re-fired on every auth change, so signing in
+   * from this page yanked you to the app before you could read where you had
+   * landed, which is a jarring way to finish a sign-in. And a landing page is
+   * useful to someone who is already signed in: it is the public face of the
+   * site, linked from search results and shared URLs.
+   *
+   * Instead the header shows who you are, and the app is one click away.
+   */
+  const { user, signedIn, authAvailable, actions } = useAuth();
+  const [loginOpen, setLoginOpen] = useState(false);
+
   useEffect(() => {
-    let live = true;
-    (async () => {
-      try {
-        const { getFirebaseAuth } = await import("@/lib/firebase");
-        const auth = await getFirebaseAuth();
-        const unsubscribe = auth.onAuthStateChanged((u) => {
-          if (!live) return;
-          if (u) router.replace("/chat");
-        });
-        return () => {
-          live = false;
-          unsubscribe();
-        };
-      } catch {
-        // Firebase not configured: this site runs anonymously, so stay put.
-      } finally {
-        if (live) setChecking(false);
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, [router]);
+    if (authAvailable) setChecking(false);
+  }, [authAvailable]);
 
   // Default to the user's saved model so the picker is not arbitrary.
   useEffect(() => {
@@ -247,7 +245,26 @@ export default function Landing() {
           <a className="land-link" href="#tools">
             All tools
           </a>
-          <button type="button" className="land-btn ghost sm" onClick={() => router.push("/chat")}>
+          {/*
+            Sign-in lives in the header rather than the hero because it is a
+            utility, not a pitch. The button is only rendered once the auth
+            state has actually resolved, otherwise it appears and then vanishes
+            on an unconfigured site, which reads as a broken control.
+          */}
+          {signedIn ? (
+            <span className="land-user" title={user?.email || user?.name || ""}>
+              {user?.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="land-avatar" src={user.image} alt="" />
+              ) : null}
+              <span className="land-user-name">{user?.name || "Signed in"}</span>
+            </span>
+          ) : authAvailable ? (
+            <button type="button" className="land-btn ghost sm" onClick={() => setLoginOpen(true)}>
+              Sign in
+            </button>
+          ) : null}
+          <button type="button" className="land-btn sm" onClick={() => router.push("/chat")}>
             Open the app
           </button>
         </div>
@@ -319,7 +336,13 @@ export default function Landing() {
             ) : null}
           </div>
 
-          <button type="button" className="land-btn primary" onClick={start} disabled={checking}>
+          {/*
+            Deliberately never disabled. It used to wait on the auth check, which
+            meant a slow or unreachable Firebase left the one button that starts
+            a chat unclickable. Starting a chat needs no account and no auth
+            state, so nothing about it should depend on either.
+          */}
+          <button type="button" className="land-btn primary" onClick={start}>
             Start chatting
             <ArrowIcon size={16} />
           </button>
@@ -381,6 +404,18 @@ export default function Landing() {
           })}
         </div>
       </section>
+
+      {loginOpen ? (
+        <LoginScreen
+          variant="modal"
+          onClose={() => setLoginOpen(false)}
+          onSignedIn={() => setLoginOpen(false)}
+          onSignIn={actions.signIn}
+          onSignInEmail={actions.signInEmail}
+          onSignUpEmail={actions.signUpEmail}
+          onResetPassword={actions.resetPassword}
+        />
+      ) : null}
 
       <footer className="land-foot">
         <div className="land-foot-col">

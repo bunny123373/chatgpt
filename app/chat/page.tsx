@@ -1,6 +1,6 @@
 import AuthGate from "@/components/AuthGate";
 
-/** The app itself. The landing page lives at "/" and redirects signed-in users here. */
+/** The app itself. Reached from the landing page; works signed out, anonymously. */
 export default function ChatPage() {
   return <AuthGate />;
 }
