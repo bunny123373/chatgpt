@@ -1013,6 +1013,7 @@ useEffect(() => {
       let errored = false;
       let stopped = false;
       let toolsUsed: string[] = [];
+      let routedVia: string | undefined;
       let usage: Usage | undefined;
 
       const flush = () => {
@@ -1118,6 +1119,7 @@ useEffect(() => {
             delta?: string;
             error?: string;
             tools_used?: string[];
+            routed_via?: string;
             usage?: Usage;
             choices?: { delta?: { content?: string } }[];
           };
@@ -1134,6 +1136,8 @@ useEffect(() => {
           if (Array.isArray(json.tools_used) && json.tools_used.length) {
             toolsUsed = [...toolsUsed, ...json.tools_used];
           }
+          // Which upstream provider served this turn, when the provider says.
+          if (json.routed_via) routedVia = json.routed_via;
           if (json.usage) usage = { ...json.usage };
           const piece = json.delta ?? json.choices?.[0]?.delta?.content ?? "";
           if (piece) {
@@ -1197,6 +1201,7 @@ useEffect(() => {
                   stopped: stopped && !errored,
                   mode: cMode === "auto" ? undefined : cMode,
                   toolsUsed: toolsUsed.length ? [...new Set(toolsUsed)] : undefined,
+            routedVia,
                   usage: finalUsage,
                 }
               : m

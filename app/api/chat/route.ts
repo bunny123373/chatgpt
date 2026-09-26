@@ -329,6 +329,20 @@ export async function POST(req: Request) {
           return;
         }
 
+        /*
+         * Which provider actually served this.
+         *
+         * A router like FreeLLMAPI answers with x-routed-via, and the client
+         * deliberately does not render the model id, so without this the reply
+         * would be entirely anonymous about its own origin. Naming the provider
+         * is the honest substitute: it says where the answer came from without
+         * leaking the deployment's model configuration.
+         *
+         * Absent on a direct provider, which is fine: the field is simply not
+         * sent and the UI stays quiet.
+         */
+        const routedVia = upstream.headers.get("x-routed-via");
+        if (routedVia) controller.enqueue(sse({ routed_via: routedVia }));
         if (toolsUsed.length) {
           controller.enqueue(sse({ delta: "", tools_used: toolsUsed }));
         }

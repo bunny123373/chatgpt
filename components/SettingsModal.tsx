@@ -1,8 +1,9 @@
 "use client";
 import { useDismiss } from "@/lib/useDismiss";
+import { PROVIDERS, providerForUrl } from "@/lib/providers";
 import { playSound, unlockAudio } from "@/lib/sound";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BUBBLE_COLORS, DEFAULT_SETTINGS, MODELS, type AuthUser, type Project, type Settings } from "@/lib/types";
 import { BackIcon, TrashIcon } from "./Icons";
 
@@ -63,6 +64,10 @@ export default function SettingsModal({
   const [draftName, setDraftName] = useState("");
   const [syncing, setSyncing] = useState(false);
   const avatarInput = useRef<HTMLInputElement | null>(null);
+  // Provider probe: connection result plus whatever /models returned.
+  const [probe, setProbe] = useState<{ ok: boolean; error?: string; status?: number; count?: number; models?: string[]; busy?: boolean } | null>(null);
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const provider = providerForUrl(settings.baseUrl);
 
   // Custom avatar if set, otherwise the provider's photo.
   const avatarPreview = settings.avatar || user?.image || "";
@@ -135,10 +140,44 @@ export default function SettingsModal({
         if (live) setVoices(Array.isArray(d.voices) ? d.voices : []);
       })
       .catch(() => {});
-    return () => {
+  
+  return () => {
       live = false;
     };
   }, [open, settings.apiKey, settings.baseUrl]);
+
+  /**
+   * Ask the provider who it is and what it serves.
+   *
+   * One request, because GET /models is both the cheapest reachability check
+   * and the source for a dynamic model list. The key travels in x-api-key like
+   * every other route, never in the query string, so it cannot end up in a log
+   * or a referrer.
+   */
+  const testProvider = useCallback(async () => {
+    setFetchingModels(true);
+    setProbe({ ok: false, busy: true });
+    try {
+      const r = await fetch("/api/test-provider", {
+        headers: {
+          "x-api-key": settings.apiKey.trim(),
+          "x-base-url": settings.baseUrl.trim(),
+        },
+      });
+      const d = (await r.json()) as { ok: boolean; error?: string; status?: number; count?: number; models?: string[] };
+      setProbe(d);
+      // A working provider is a good moment to adopt its model list, but only
+      // if the current model is not one it serves, so a working setup is never
+      // silently changed out from under the user.
+      if (d.ok && d.models?.length && !d.models.includes(settings.model)) {
+        set("model", d.models[0]);
+      }
+    } catch {
+      setProbe({ ok: false, error: "Could not reach this site to run the test." });
+    } finally {
+      setFetchingModels(false);
+    }
+  }, [settings.apiKey, settings.baseUrl, settings.model]);
 
   const { render, closing, requestClose } = useDismiss(open, onClose);
 
@@ -207,7 +246,60 @@ export default function SettingsModal({
                 </div>
 
                 <div className="set-row col">
-                  <label htmlFor="baseUrl" className="set-label">
+                  <div className="set-row set-row-stack">
+                <span className="set-label">
+                  Provider
+                  <small>Presets fill the base URL. Anything OpenAI-compatible works.</small>
+                </span>
+                <div className="preset-row">
+                  {PROVIDERS.map((p) => {
+                    const on = settings.baseUrl.trim() === p.baseUrl;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={`preset${on ? " on" : ""}`}
+                        aria-pressed={on}
+                        title={p.note || `Base URL: ${p.baseUrl}`}
+                        onClick={() => {
+                          set("baseUrl", p.baseUrl);
+                          // Take the provider's own default model with it.
+                          // Leaving an xKiro model id in place while pointing at
+                          // a different provider is the classic way to get a
+                          // 404 on every message, so the two change together.
+                          if (settings.model !== p.defaultModel) set("model", p.defaultModel);
+                          setProbe(null);
+                        }}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {provider?.note ? <small className="set-hint">{provider.note}</small> : null}
+              </div>
+
+              <div className="set-row">
+                <span className="set-label">
+                  Test connection
+                  <small>
+                    Asks the provider for its model list. Also used to fill the picker below.
+                    {provider && !provider.supports.search ? " This provider has no web-search endpoint, so that toggle is hidden." : ""}
+                  </small>
+                </span>
+                <button type="button" className="btn" onClick={() => void testProvider()} disabled={fetchingModels}>
+                  {fetchingModels ? "Testing" : "Test"}
+                </button>
+              </div>
+
+              {probe && !probe.busy ? (
+                <p className={`probe ${probe.ok ? "ok" : "bad"}`} role="status">
+                  {probe.ok
+                    ? `Connected. ${probe.count ?? 0} model${probe.count === 1 ? "" : "s"} available.`
+                    : `${probe.error ?? "Could not connect."}${probe.status ? ` (HTTP ${probe.status})` : ""}`}
+                </p>
+              ) : null}
+              <label htmlFor="baseUrl" className="set-label">
                     API base URL
                   </label>
                   <input
@@ -223,6 +315,33 @@ export default function SettingsModal({
                   </p>
                 </div>
 
+                {/* Whatever /models returned, if the probe has run. Above the
+                    typed field rather than replacing it, so an id that is not in
+                    the list can still be entered by hand. */}
+                {probe?.ok && probe.models?.length ? (
+                  <>
+                    <p className="set-desc">
+                      {probe.models.length} model{probe.models.length === 1 ? "" : "s"} from your provider.
+                    </p>
+                    <div className="model-grid">
+                      {probe.models.slice(0, 60).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          className={`model-chip${settings.model === m ? " on" : ""}`}
+                          aria-pressed={settings.model === m}
+                          onClick={() => set("model", m)}
+                          title={m}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                    {probe.models.length > 60 ? (
+                      <p className="set-desc">Showing the first 60. Type any id below for another.</p>
+                    ) : null}
+                  </>
+                ) : null}
                 <div className="set-row col">
                   <label htmlFor="model" className="set-label">
                     Model

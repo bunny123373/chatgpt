@@ -59,6 +59,15 @@ export interface Msg {
   imgPending?: boolean;
   /** Documents/images attached to this message. */
   files?: FileRef[];
+  /**
+   * Which upstream provider actually served this reply, when the provider
+   * reports it. A router such as FreeLLMAPI sends x-routed-via.
+   *
+   * This is deliberately separate from the model id, which this app never
+   * renders. Naming the provider says where an answer came from without
+   * exposing the deployment's model configuration.
+   */
+  routedVia?: string;
   /** Names of tools (calculator, etc.) the model called to produce this reply. */
   toolsUsed?: string[];
   /** ChatGPT-style thumbs up / down feedback on an assistant reply. */

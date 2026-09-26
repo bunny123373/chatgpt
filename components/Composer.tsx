@@ -52,6 +52,8 @@ interface Props {
   filesBusy: boolean;
   searching: boolean;
   onToggleSearch: () => void;
+  /** False when the configured provider has no web-search endpoint. */
+  providerSearchOk?: boolean;
   /** Model tool-calling (time/date/calculator/converter). */
   tools: boolean;
   onToggleTools: () => void;
@@ -96,7 +98,7 @@ export default function Composer({
   onImageUrl,
   onAskAboutImage,
   searching,
-  onToggleSearch,
+  onToggleSearch,  providerSearchOk = true,
   tools,
   onToggleTools,
   imgMode,
@@ -430,7 +432,10 @@ export default function Composer({
 
         {(searching || tools || listening || research) ? (
           <div className="tchips">
-            {searching ? (
+            {/* Hidden, not disabled: a control that cannot work is worse
+                than no control. providerSearchOk is false for providers with no
+                /search endpoint, so there is nothing to turn on. */}
+            {searching && providerSearchOk ? (
               <div className="tchip">
                 <SearchIcon />
                 <span>Search the web</span>

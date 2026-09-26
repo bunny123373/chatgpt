@@ -251,9 +251,9 @@ function MessageRow({
               {msg.researchSources ? (
                 <p className="research-note">Based on {msg.researchSources} web sources</p>
               ) : null}
-              {/* model-tag / tools-used / usage-tag moved OUT of the message
-                  body into the footer below it -- see `meta` near the return. */}
-              {/* usage-tag moved out too -- see `meta` near the return. */}
+              {/* The model tag, tool badges, usage readout and the routed-via
+                  line all moved OUT of the message body into the footer below it, so
+                  the prose is the only thing in the reply. See `meta` in ChatApp. */}
             </>
           )}
         </div>
@@ -404,7 +404,21 @@ function MessageRow({
    */
   const meta = !busy && !empty ? (
     <div className="msg-meta">
-      {!isUser && model ? (
+      {/*
+       * Which upstream provider actually served this turn, when the provider
+       * says so. FreeLLMAPI sends x-routed-via; a direct provider sends nothing
+       * and this stays quiet.
+       *
+       * Preferred over the model tag when both are present: naming the provider
+       * answers "where did this come from" without exposing the deployment's
+       * model configuration, which is the thing this app deliberately hides.
+       */}
+      {!isUser && msg.routedVia ? (
+        <p className="model-tag" title="This reply was served by the provider below">
+          via {msg.routedVia}
+        </p>
+      ) : null}
+      {!isUser && !msg.routedVia && model ? (
         /* Friendly name only. The raw id names the provider, so it is never
            rendered, and never in the tooltip either. */
         <p className="model-tag" title={`Generated with ${model}`}>
