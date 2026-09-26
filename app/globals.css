@@ -5180,49 +5180,26 @@ html[data-theme="dark"] .land-btn.primary { color: #0f0f0f; }
   .land-caps { padding-top: 16px; padding-bottom: 16px; }
 }
 
-/* ====================== Chat bubble restyle ============================== */
-/* User messages sit in a soft card with a gradient edge; assistant replies
-   run full width with no bubble, so long answers read like a document. */
+/* ====================== Chat bubbles: ChatGPT style ====================== */
+/* A sent message is a flat, borderless pill pushed to the right -- the same
+   shape ChatGPT uses. No gradient, no hairline, no shadow, no tail: the fill
+   alone separates it from the page, and anything more makes it read as a card
+   rather than as something you just said. Replies run full width with no
+   background at all, so a long answer reads like a document. */
 .msg.user .body {
-  position: relative;
-  max-width: min(78%, 620px);
-  padding: 11px 16px;
-  border-radius: 18px;
-  border: 1px solid var(--border);
-  background:
-    linear-gradient(168deg,
-      color-mix(in srgb, var(--user-bubble) 88%, var(--accent) 12%),
-      var(--user-bubble));
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.10),
-    0 6px 18px -8px rgba(0, 0, 0, 0.28);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-}
-.msg.user .body:hover {
-  border-color: var(--border2);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.12),
-    0 10px 26px -10px rgba(0, 0, 0, 0.34);
-}
-/* Hairline highlight along the top edge, so the card reads as raised. */
-.msg.user .body::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  border-radius: 18px 18px 0 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
-  pointer-events: none;
-}
-html[data-theme="dark"] .msg.user .body::before {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.10), transparent);
+  max-width: min(78%, 560px);
+  padding: 10px 15px;
+  border-radius: 20px;
+  background: var(--user-bubble);
+  border: 0;
+  box-shadow: none;
 }
 /* Replies: no card at all, just a comfortable reading measure. */
 .msg.assistant .body { max-width: 100%; }
 .msg.assistant .content { max-width: 74ch; }
 
 @media (max-width: 620px) {
-  .msg.user .body { max-width: 90%; padding: 10px 14px; }
+  .msg.user .body { max-width: 90%; padding: 9px 14px; }
   .msg.assistant .content { max-width: 100%; }
 }
 /* ====================== Landing: all-tools section ======================= */
@@ -5581,7 +5558,7 @@ a:focus-visible,
 .msg.msg-sent { animation: msg-send-in var(--an-base) var(--an-ease-out) both; }
 /* The user bubble itself settles a beat after the row lands. */
 .msg.msg-sent .body { animation: msg-card-settle var(--an-slow) var(--an-ease-out) both; }
-.msg.msg-assistant { animation: msg-reply-in var(--an-base) var(--an-ease-out) both; }
+.msg.assistant { animation: msg-reply-in var(--an-base) var(--an-ease-out) both; }
 
 /* While tokens are streaming in, keep the row from re-animating on every
    state update. The caret is what signals activity, not the box. */
