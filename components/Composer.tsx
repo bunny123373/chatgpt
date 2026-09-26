@@ -19,7 +19,6 @@ import {
 } from "./Icons";
 import { IMAGE_RATIOS, RATIO_OUTPUT, type FileRef, type ImageRatio, type ResponseMode } from "@/lib/types";
 import { extractUrls, looksLikeImageUrl, probeImageUrl } from "@/lib/imageDownloader";
-import ImageCard from "./ImageCard";
 
 interface Props {
   value: string;
@@ -44,6 +43,11 @@ interface Props {
    * message it is about to send. Called with null once the URL goes away.
    */
   onImageUrl: (info: { url: string; filename: string; type: string; dataUrl?: string } | null) => void;
+  /**
+   * Fired when the user clicks the "Ask about this image" bubble. Sends the
+   * image to the model straight away, without waiting for them to type.
+   */
+  onAskAboutImage: (info: { url: string; filename: string; type: string; dataUrl?: string }) => void;
   /** True while documents are being parsed. */
   filesBusy: boolean;
   searching: boolean;
@@ -90,6 +94,7 @@ export default function Composer({
   onConvertPdf,
   onOpenImageDownloader,
   onImageUrl,
+  onAskAboutImage,
   searching,
   onToggleSearch,
   tools,
@@ -130,7 +135,12 @@ export default function Composer({
 
   useEffect(() => {
     const urls = extractUrls(value);
-    const candidate = urls.find((u) => looksLikeImageUrl(u)) ?? null;
+    // Prefer a URL whose path names an image; that check is free. Otherwise
+    // fall back to probing the first URL, because plenty of image URLs carry no
+    // extension at all (photo-123?w=800, /media?id=456) and those were being
+    // missed entirely.
+    const byExtension = urls.find((u) => looksLikeImageUrl(u)) ?? null;
+    const candidate = byExtension ?? urls[0] ?? null;
     if (!candidate) {
       if (linkedRef.current) {
         linkedRef.current = null;
@@ -150,8 +160,13 @@ export default function Composer({
         const info = { url: candidate, filename: res.filename, type: res.type, dataUrl: res.dataUrl };
         setLinkedImage(info);
         onImageUrl(info);
+      } else if (byExtension) {
+        // The path claimed to be an image but it was not; do not keep claiming it is.
+        linkedRef.current = null;
+        setLinkedImage(null);
+        onImageUrl(null);
       }
-    }, 600);
+    }, 700);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
@@ -379,21 +394,37 @@ export default function Composer({
         ) : null}
 
         {linkedImage ? (
-          <div className="linked-img">
-            <ImageCard
-              src={linkedImage.url}
-              dataUrl={linkedImage.dataUrl}
-              filename={linkedImage.filename}
-              type={linkedImage.type}
-              compact
-              onRemove={() => {
+          <div className="ask-bubble">
+            <button
+              type="button"
+              className="ask-bubble-btn"
+              onClick={() => onAskAboutImage(linkedImage)}
+              disabled={busy}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="ask-bubble-thumb" src={linkedImage.dataUrl || linkedImage.url} alt="" />
+              <span className="ask-bubble-text">
+                <b>Ask about this image</b>
+                <small>{linkedImage.filename}</small>
+              </span>
+              <span className="ask-bubble-go" aria-hidden="true">
+                →
+              </span>
+            </button>
+            <button
+              type="button"
+              className="ask-bubble-x"
+              title="Ignore this image"
+              aria-label="Ignore this image"
+              onClick={() => {
                 linkedRef.current = null;
                 setLinkedImage(null);
                 onImageUrl(null);
                 onChange(value.split(linkedImage.url).join("").trim());
               }}
-            />
-            <p className="tp-dim">This image will be sent with your message.</p>
+            >
+              <CloseIcon />
+            </button>
           </div>
         ) : null}
 

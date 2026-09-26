@@ -494,16 +494,18 @@ export default function ChatApp({
     // A URL pasted into the draft that turned out to be an image: attach it so
     // the model can see it, and keep the reference so the message can show
     // download and convert controls.
-    if (linkedImage) {
+    // The ref, not the state: the bubble click sends in the same tick.
+    const linked = linkedImageRef.current;
+    if (linked) {
       // Prefer the inlined data URL: a vision endpoint has to be able to reach
       // the remote URL itself, and usually cannot. Fall back to the URL when
       // the image was too big to inline.
-      userMsg.image = linkedImage.dataUrl || linkedImage.url;
+      userMsg.image = linked.dataUrl || linked.url;
       userMsg.imageRef = {
-        url: linkedImage.url,
-        filename: linkedImage.filename,
-        type: linkedImage.type,
-        dataUrl: linkedImage.dataUrl,
+        url: linked.url,
+        filename: linked.filename,
+        type: linked.type,
+        dataUrl: linked.dataUrl,
       };
     }
     const replyId = uid();
@@ -514,7 +516,7 @@ export default function ChatApp({
     setInput("");
     setResearchOn(false);
     setPendingFiles([]);
-    setLinkedImage(null);
+    setLinked(null);
     stickRef.current = true;
 
     patchChat(chatId, (c) => ({
@@ -630,7 +632,15 @@ export default function ChatApp({
   };
 
   // An image URL found in the composer draft, attached to the next message.
+  // Mirrored into a ref so the "Ask about this image" bubble can fire a send in
+  // the same tick, without waiting for React to flush the state.
   const [linkedImage, setLinkedImage] = useState<{ url: string; filename: string; type: string; dataUrl?: string } | null>(null);
+  const linkedImageRef = useRef<{ url: string; filename: string; type: string; dataUrl?: string } | null>(null);
+
+  const setLinked = (info: { url: string; filename: string; type: string; dataUrl?: string } | null) => {
+    linkedImageRef.current = info;
+    setLinkedImage(info);
+  };
   const [helpOpen, setHelpOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -1869,7 +1879,15 @@ export default function ChatApp({
           onFilesAttach={(picked) => void attachFiles(picked)}
       onConvertPdf={(file) => void convertToPdf(file)}
       onOpenImageDownloader={() => openTools("image", "download")}
-      onImageUrl={setLinkedImage}
+      onImageUrl={setLinked}
+      onAskAboutImage={(info) => {
+        // Clicking the bubble sends the image straight to the model. The ref is
+        // set synchronously so send() sees it in this same tick.
+        setLinked(info);
+        // Reuse whatever is already in the draft as the question, so a user who
+        // pasted the link alongside a request gets that request honoured.
+        send(input.trim() || "Describe this image in detail.");
+      }}
           filesBusy={filesBusy}
           mode={settings.mode}
           onModeChange={(m) => setSettings((s) => ({ ...s, mode: m }))}

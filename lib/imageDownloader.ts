@@ -86,20 +86,35 @@ export function guessFilename(url: string, type: string): string {
   return `image.${ext}`;
 }
 
-/** Read intrinsic pixel dimensions from the blob. */
+/**
+ * Read intrinsic pixel dimensions from the blob.
+ *
+ * Purely informational, so it must never fail the download: if there is no
+ * Image constructor, or the blob will not decode, report 0x0 and carry on.
+ */
 function readSize(blob: Blob): Promise<{ width: number; height: number }> {
   return new Promise((resolve) => {
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-    img.onload = () => {
-      resolve({ width: img.naturalWidth, height: img.naturalHeight });
-      URL.revokeObjectURL(url);
-    };
-    img.onerror = () => {
+    if (typeof Image === "undefined" || typeof URL.createObjectURL !== "function") {
       resolve({ width: 0, height: 0 });
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
+      return;
+    }
+    let url = "";
+    try {
+      url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = () => {
+        resolve({ width: 0, height: 0 });
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    } catch {
+      if (url) URL.revokeObjectURL(url);
+      resolve({ width: 0, height: 0 });
+    }
   });
 }
 
@@ -173,12 +188,24 @@ export async function fetchImage(
  */
 export const MAX_INLINE = 4 * 1024 * 1024;
 
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => resolve(String(fr.result ?? ""));
-    fr.onerror = () => reject(new Error("Could not read the image."));
-    fr.readAsDataURL(blob);
+/**
+ * Base64-encode a blob. Optional detail, so any failure yields undefined rather
+ * than losing the download.
+ */
+function blobToDataUrl(blob: Blob): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    if (typeof FileReader === "undefined") {
+      resolve(undefined);
+      return;
+    }
+    try {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result ?? "") || undefined);
+      fr.onerror = () => resolve(undefined);
+      fr.readAsDataURL(blob);
+    } catch {
+      resolve(undefined);
+    }
   });
 }
 
@@ -239,23 +266,17 @@ export function looksLikeImageUrl(url: string): boolean {
 }
 
 /**
- * Decide whether a pasted URL is an image without downloading it.
+ * Decide whether a URL is an image, and return it if so.
  *
- * The extension is checked first because that costs nothing; only when the
- * path is inconclusive does this call the proxy, so typing an ordinary link
- * like https://news.site/article never triggers a download.
+ * A known extension means the answer is yes without a network call. Anything
+ * else is fetched once and judged by its content type, which is the only way to
+ * recognise the many image URLs that carry no extension. Returns null when the
+ * URL is not an image, so callers can treat that as "just a link".
  */
-export async function probeImageUrl(
-  url: string,
-  opts: { probeAmbiguous?: boolean } = {}
-): Promise<FetchedImage | FetchError | null> {
-  if (looksLikeImageUrl(url)) return fetchImage(url);
-  if (opts.probeAmbiguous === false) return null;
-  // Ambiguous path: ask the proxy, and treat a non-image as "not an image".
+export async function probeImageUrl(url: string): Promise<FetchedImage | FetchError | null> {
   const res = await fetchImage(url);
   if (!res.ok) return null;
-  releaseImage(res);
-  return fetchImage(url);
+  return res;
 }
 
 /** Load an image element from a URL, for the inline preview. */
