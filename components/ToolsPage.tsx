@@ -30,6 +30,7 @@ import { ColourTools as ColourTab, ImageDownloader, QrTools as QrTab, UrlTools a
 import { useDismiss } from "@/lib/useDismiss";
 import { TOOL_META, type ToolId } from "@/lib/toolMeta";
 import { TOOL_ICONS } from "./toolIcons";
+import LoginScreen from "./LoginScreen";
 
 /** The tab id, re-exported so existing references in this file keep working. */
 export type Tab = ToolId;
@@ -948,9 +949,39 @@ export interface GenProps {
   baseUrl: string;
   signedIn: boolean;
   notify: (m: string) => void;
-}
+  /**
+   * Sign-in, for the standalone page.
+   *
+   * Optional because the in-app panel already offers an account UI elsewhere and
+   * does not need one here. On /tools/make these are what turn "Log in to create
+   * images" from a dead end into a prompt the visitor can actually answer: the
+   * tool cannot open a sign-in dialog by itself, and a page that says "log in"
+   * without offering it is worse than one that explains why.
+   */
+  authAvailable?: boolean;
+  onOpenLogin?: () => void;
+  loginOpen?: boolean;
+  onCloseLogin?: () => void;
+  onSignIn?: (provider: "google" | "github") => Promise<void>;
+  onSignInEmail?: (email: string, password: string) => Promise<string | null>;
+  onSignUpEmail?: (name: string, email: string, password: string) => Promise<{ verify: boolean }>;
+  onResetPassword?: (email: string) => Promise<void>;}
 
-export function GenerateTools({ model, apiKey, baseUrl, signedIn, notify }: GenProps) {
+export function GenerateTools({
+  model,
+  apiKey,
+  baseUrl,
+  signedIn,
+  notify,
+  authAvailable,
+  onOpenLogin,
+  loginOpen,
+  onCloseLogin,
+  onSignIn,
+  onSignInEmail,
+  onSignUpEmail,
+  onResetPassword,
+}: GenProps) {
   const [kind, setKind] = useState<"doc" | "image">("doc");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -960,7 +991,15 @@ export function GenerateTools({ model, apiKey, baseUrl, signedIn, notify }: GenP
 
   const go = async () => {
     if (!prompt.trim()) return notify("Describe what you want first");
-    if (kind === "image" && !signedIn) return notify("Log in to create images");
+    if (kind === "image" && !signedIn) {
+      // Offering the dialog beats naming the problem. Telling someone to log in
+      // on a page with no way to do so is a dead end.
+      if (authAvailable && onOpenLogin) {
+        onOpenLogin();
+        return;
+      }
+      return notify(authAvailable ? "Log in to create images" : "Image generation needs an account on this site");
+    }
     setBusy(true);
     setErr("");
     setResult("");
@@ -1071,6 +1110,24 @@ export function GenerateTools({ model, apiKey, baseUrl, signedIn, notify }: GenP
             Download
           </a>
         </div>
+      ) : null}
+      {/*
+        Sign-in for the standalone page only. The in-app panel passes none of
+        these, so this stays null there and the sidebar's account UI is used as
+        before. Guarded on every handler being present because LoginScreen calls
+        them unconditionally: a half-wired modal would throw when opened rather
+        than fail at build time.
+      */}
+      {loginOpen && onCloseLogin && onSignIn && onSignInEmail && onSignUpEmail && onResetPassword ? (
+        <LoginScreen
+          variant="modal"
+          onClose={onCloseLogin}
+          onSignedIn={onCloseLogin}
+          onSignIn={onSignIn}
+          onSignInEmail={onSignInEmail}
+          onSignUpEmail={onSignUpEmail}
+          onResetPassword={onResetPassword}
+        />
       ) : null}
     </div>
   );

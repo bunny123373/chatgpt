@@ -102,7 +102,7 @@ const TOOL_GROUPS: ToolGroup[] = [
     icon: ImageIcon,
     tone: "teal",
     items: [
-      { label: "Create an image", href: "/chat?img=1" },
+      { label: "Create an image", href: "/tools/make" },
       { label: "Download from a URL", href: "/tools/image&dir=download" },
       { label: "Convert and resize", href: "/tools/image" },
       { label: "Image variations", href: "/chat" },

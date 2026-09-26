@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { GenerateTools } from "./ToolsPage";
 import { DEFAULT_SETTINGS } from "@/lib/types";
+import { useAuth } from "@/lib/useAuth";
 
 /**
  * Image generation on a standalone /tools/make page.
@@ -16,15 +17,22 @@ import { DEFAULT_SETTINGS } from "@/lib/types";
  * working here with no second setup step, which is the behaviour people expect.
  * A visitor who has not gets the defaults, and the server's own key is used.
  *
- * Scoping: the app namespaces its settings per account as
- * `chatgpt2.u.<uid>.*`, and a standalone page has no auth context to resolve
- * which namespace applies. So this reads the unscoped `chatgpt2.settings` only.
- * The practical effect is that a key saved while signed in is not picked up
- * here. Resolving that properly would mean wiring useAuth into this page, which
- * is more machinery than a tool page should carry; the honest fix is for the
- * page to say which it read.
+ * Auth state is read through the shared useAuth hook rather than hardcoded. It
+ * has to be real: GenerateTools refuses to create an image when `signedIn` is
+ * false, so passing a constant here made the tool's primary function unreachable
+ * on this page. Passing the live phase lets it show the sign-in prompt the same
+ * way the app does.
+ *
+ * Scoping: the app namespaces its settings per account as `chatgpt2.u.<uid>.*`.
+ * A signed-in visitor's key therefore lives under a namespaced key this page
+ * does not know to look for, so it reads the unscoped `chatgpt2.settings` only.
+ * In practice a key saved while signed in is not picked up here; the server's
+ * own key is used instead. Resolving that properly would mean tracking the uid
+ * into the storage read, which is more machinery than a tool page should carry.
  */
 export default function GenerateStandalone({ notify }: { notify: (m: string) => void }) {
+  const { signedIn, authAvailable, actions } = useAuth();
+  const [loginOpen, setLoginOpen] = useState(false);
   const [creds, setCreds] = useState({
     model: DEFAULT_SETTINGS.model,
     apiKey: "",
@@ -55,9 +63,21 @@ export default function GenerateStandalone({ notify }: { notify: (m: string) => 
       model={creds.model}
       apiKey={creds.apiKey}
       baseUrl={creds.baseUrl}
-      // No auth context here, so the signed-in-only affordances stay hidden.
-      signedIn={false}
+      signedIn={signedIn}
+      // False while auth is still resolving, and false when Firebase is not
+      // configured at all. Either way the tool's own guard is the thing that
+      // decides, so this only controls whether a sign-in hint can be offered.
+      authAvailable={authAvailable}
       notify={notify}
+      // Lets the tool offer sign-in from this page rather than only telling the
+      // visitor to go and do it elsewhere.
+      onOpenLogin={authAvailable ? () => setLoginOpen(true) : undefined}
+      loginOpen={loginOpen}
+      onCloseLogin={() => setLoginOpen(false)}
+      onSignIn={actions.signIn}
+      onSignInEmail={actions.signInEmail}
+      onSignUpEmail={actions.signUpEmail}
+      onResetPassword={actions.resetPassword}
     />
   );
 }
