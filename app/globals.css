@@ -46,6 +46,13 @@ html,
 body {
   height: 100%;
 }
+/* No page may scroll sideways. `clip` rather than `hidden`, because `hidden`
+   on one axis forces the other to `auto`, which turns the root into a scroll
+   container and stops iOS and Android scrolling the document normally. */
+html {
+  overflow-x: hidden;
+  overflow-x: clip;
+}
 body {
   background: var(--bg);
   color: var(--text);
@@ -5305,4 +5312,34 @@ html[data-theme="dark"] .msg.user .body::before {
   .land-tool-arrow { display: none; }
   .land-tools-head h2 { font-size: 22px; }
   .land-tools-sub { font-size: 13.5px; }
+}
+/* Narrow screens: the popovers carry fixed min-widths (285/232/190/168px) that
+   can exceed a small phone's viewport once the inline left offset is added.
+   Cap them against the viewport so they can never push the page sideways. */
+@media (max-width: 420px) {
+  .menu { min-width: min(285px, calc(100vw - 20px)); }
+  .mode-menu { min-width: min(232px, calc(100vw - 20px)); }
+  .ratio-menu { min-width: min(190px, calc(100vw - 20px)); }
+  .tpl-menu { width: min(320px, calc(100vw - 20px)); }
+  .tools-menu { width: min(300px, calc(100vw - 20px)); }
+  .acct-menu { min-width: min(260px, calc(100vw - 20px)); }
+}
+
+/* Long words and pasted URLs must wrap rather than widen their container. */
+.land-cap p,
+.land-tool-blurb,
+.land-sub,
+.land-tools-sub,
+.land-tool-link > span:first-child,
+.land-note {
+  overflow-wrap: anywhere;
+}
+
+/* Flex children holding text must be allowed to shrink, or a long unbroken
+   string forces the whole row wider than the viewport. */
+.land-brand,
+.land-bar-right,
+.land-cta > *,
+.land-foot > * {
+  min-width: 0;
 }
