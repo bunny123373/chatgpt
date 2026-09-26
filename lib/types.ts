@@ -223,6 +223,15 @@ export interface Settings {
   avatar: string;
   theme: "dark" | "light";
   nickname: string;
+  /**
+   * Models the configured provider reported from /models, cached when the
+   * connection is tested.
+   *
+   * Shared by the Settings picker and the chat's model menu on purpose. Caching
+   * rather than refetching per open means the chat menu works offline and opens
+   * instantly, and there is one list to reason about instead of two that drift.
+   */
+  remoteModels?: string[];
 }
 
 /** Signed-in account surfaced from Firebase Auth into the app. */

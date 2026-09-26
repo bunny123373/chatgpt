@@ -170,6 +170,14 @@ export function loadSettings(): Settings {
   // Default OFF, and never inferred. Syncing sends conversation content to a
   // server, so an existing profile must opt in rather than acquire it by upgrade.
   if (typeof merged.sync !== "boolean") merged.sync = false;
+  // A cached provider model list. Dropped rather than trusted if it is not
+  // an array of strings, so a hand-edited or corrupted blob cannot reach the
+  // picker and crash it.
+  if (Array.isArray(merged.remoteModels)) {
+    merged.remoteModels = merged.remoteModels.filter((m): m is string => typeof m === "string" && m.length > 0).slice(0, 400);
+  } else {
+    delete merged.remoteModels;
+  }
   return merged;
 }
 

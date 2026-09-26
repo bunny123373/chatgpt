@@ -1824,6 +1824,36 @@ useEffect(() => {
    * scrolling. Clamped on both axes because min-width is 285px and the button
    * sits near the right edge on a narrow screen.
    */
+  /**
+   * What the model menu shows.
+   *
+   * It used to render the hardcoded MODELS list and nothing else, so pointing
+   * the app at a different provider still showed three xKiro models and none of
+   * the provider's own. Now the provider's list, cached by the connection test,
+   * is merged in and wins where they overlap.
+   *
+   * The curated entries are kept even when a remote list exists, because they
+   * carry descriptions and a vision flag the ids alone do not, and a provider
+   * serving only free models should not hide the fact that some of those take an
+   * image.
+   */
+  const remoteModels = settings.remoteModels ?? [];
+  const modelChoices: { id: string; name: string; desc: string }[] = remoteModels.length
+    ? (() => {
+        const known = new Map(MODELS.map((m) => [m.id, m]));
+        const out = remoteModels.map((id) => ({
+          id,
+          name: known.get(id)?.name ?? id,
+          desc: known.get(id)?.desc ?? "",
+        }));
+        // Curated models the provider does not serve, marked so the choice is
+        // not a trap: selecting one will fail, and the label says so first.
+        for (const m of MODELS) {
+          if (!remoteModels.includes(m.id)) out.push({ id: m.id, name: m.name, desc: `${m.desc} (not offered by this provider)` });
+        }
+        return out;
+      })()
+    : MODELS.map((m) => ({ id: m.id, name: m.name, desc: m.desc }));
   const openModelMenu = () => {
     const r = modelBtnRef.current?.getBoundingClientRect();
     if (!r) {
@@ -1989,7 +2019,12 @@ useEffect(() => {
           <>
             <div style={{ position: "fixed", inset: 0, zIndex: 55 }} onClick={() => setModelMenu(false)} />
             <div ref={menuRef} className="menu open" style={{ position: "fixed", top: menuPos.top, left: menuPos.left }}>
-              {MODELS.map((m) => (
+              {remoteModels.length ? (
+                <p className="menu-note">
+                  {remoteModels.length} model{remoteModels.length === 1 ? "" : "s"} from your provider
+                </p>
+              ) : null}
+              {modelChoices.map((m) => (
                 <button
                   key={m.id}
                   type="button"

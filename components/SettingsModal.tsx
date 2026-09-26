@@ -166,6 +166,11 @@ export default function SettingsModal({
       });
       const d = (await r.json()) as { ok: boolean; error?: string; status?: number; count?: number; total?: number; freeOnly?: boolean; models?: string[] };
       setProbe(d);
+      // Cache it on settings, because the chat's model menu reads the same list.
+      // Without this the picker here shows the provider's models and the one in
+      // the chat still shows the hardcoded three, which is exactly the bug this
+      // fixes.
+      set("remoteModels", d.ok && d.models?.length ? d.models : undefined);
       // A working provider is a good moment to adopt its model list, but only
       // if the current model is not one it serves, so a working setup is never
       // silently changed out from under the user.

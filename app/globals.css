@@ -6668,4 +6668,11 @@ a:focus-visible,
   color: var(--accent);
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
+}.menu-note {
+  margin: 2px 6px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
