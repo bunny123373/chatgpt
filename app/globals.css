@@ -1533,7 +1533,23 @@ html[data-theme="light"] .comp-btn.mic.on.rec {
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
-  padding: 6px;
+    /*
+   * Scrollable, and bounded by the viewport.
+   *
+   * Without max-height plus overflow-y the menu grows to fit every model and
+   * everything below the fold is unreachable: there is no scroll container to
+   * reach it with, so the list is effectively truncated by the screen edge. That
+   * is what "scrolling is blocked" means here.
+   *
+   * 100dvh rather than 100vh because the cap exists to stay clear of the fold
+   * on a phone, and the mobile URL bar is exactly what 100vh gets wrong.
+   */
+  max-height: min(420px, calc(100dvh - 96px));
+  overflow-y: auto;
+  /* Stop a flick inside the menu from continuing into the transcript behind it,
+     which is what makes a scrollable dropdown feel like it is fighting you. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;padding: 6px;
 }
 .menu-item {
   display: flex;

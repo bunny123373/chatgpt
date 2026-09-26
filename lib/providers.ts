@@ -78,6 +78,26 @@ export const PROVIDERS: ProviderDef[] = [
     note: "Runs on your own machine. If you host it, point the base URL at that host instead.",
   },
   {
+    id: "openrouter",
+    label: "OpenRouter",
+    keyUrl: "https://openrouter.ai/keys",
+    baseUrl: "https://openrouter.ai/api/v1",
+    defaultModel: "anthropic/claude-sonnet-4.5",
+    supports: {
+      chat: true,
+      // OpenRouter aggregates many models, and some of them have a web-search
+      // tool, but it is not the POST /search shape this app's research path uses.
+      // Attempting it would fail on a shape mismatch rather than a 404, so the
+      // toggle stays hidden.
+      search: false,
+      images: true,
+      speech: false,
+      // No voice catalogue.
+      voices: false,
+      models: true,
+    },
+    note: "One key, many models. Paste the key in the field below; it is stored only in this browser and sent with each request.",
+  },  {
     id: "openai",
     label: "OpenAI (compatible)",
     keyUrl: "https://platform.openai.com/api-keys",

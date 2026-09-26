@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Composer from "./Composer";
 import Canvas from "./Canvas";
 import { useSandbox, parseCsv, coerceRows } from "@/lib/sandbox";
@@ -755,6 +755,7 @@ useEffect(() => {
   const stickRef = useRef(true);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modelBtnRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   /* ---------- hydration ---------- */
   useEffect(() => {
@@ -1772,9 +1773,74 @@ useEffect(() => {
     return () => window.removeEventListener("keydown", onKey);
   }, [newChat]);
 
+  /**
+   * Correct the menu position once its real height is known.
+   *
+   * openModelMenu has to guess the height, because measuring needs the menu
+   * already rendered. A guess leaves a gap when the list is shorter than the
+   * estimate, which is what a flipped menu always is. useLayoutEffect runs
+   * before paint, so measuring and correcting here is invisible: the first frame
+   * the user sees is already the right one.
+   */
+  useLayoutEffect(() => {
+    if (!modelMenu) return;
+    const el = menuRef.current;
+    const btn = modelBtnRef.current;
+    if (!el || !btn) return;
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const h = el.offsetHeight;
+    const b = btn.getBoundingClientRect();
+
+    // Overflowing the bottom: move it up so the whole list is on screen.
+    if (b.bottom + 6 + h > vh - 8) {
+      const above = b.top - 8 - h;
+      // Prefer above the button; fall back to clamping to the viewport if the
+      // button is near the top and there is genuinely no room either way.
+      setMenuPos((p) => ({ ...p, top: above >= 8 ? above : Math.max(8, vh - 8 - h) }));
+    } else {
+      // Fits below, so snap it to the button rather than leaving the estimate's
+      // slack above it.
+      setMenuPos((p) => (p.top === b.bottom + 6 ? p : { ...p, top: b.bottom + 6 }));
+    }
+    // And keep it inside the right edge, now that the real width is known.
+    setMenuPos((p) => {
+      const w = el.offsetWidth;
+      const maxLeft = Math.max(12, vw - w - 12);
+      return p.left > maxLeft ? { ...p, left: maxLeft } : p;
+    });
+  }, [modelMenu]);
+  /**
+   * Place the model menu so all of it is reachable.
+   *
+   * It used to open at button.bottom + 6 and stop there. On a short window, or
+   * a phone with the keyboard up, that puts most of the list below the fold --
+   * and because the menu was not a scroll container, the part you could not see
+   * was also the part you could not reach.
+   *
+   * Height is estimated rather than measured because measuring needs the menu
+   * already rendered, which means a visible jump on open. The estimate matches
+   * the CSS cap, so the flip happens at the same point the list starts
+   * scrolling. Clamped on both axes because min-width is 285px and the button
+   * sits near the right edge on a narrow screen.
+   */
   const openModelMenu = () => {
     const r = modelBtnRef.current?.getBoundingClientRect();
-    setMenuPos({ top: (r?.bottom ?? 52) + 6, left: r?.left ?? 12 });
+    if (!r) {
+      setMenuPos({ top: 52, left: 12 });
+      setModelMenu((v) => !v);
+      return;
+    }
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const estimated = Math.min(420, vh * 0.6);
+    const below = vh - r.bottom - 8;
+    const up = below < estimated && r.top - 8 > below;
+    const width = Math.min(360, vw - 24);
+    setMenuPos({
+      top: up ? r.top - estimated - 8 : r.bottom + 6,
+      left: Math.min(Math.max(12, r.left), Math.max(12, vw - width - 12)),
+    });
     setModelMenu((v) => !v);
   };
 
@@ -1922,7 +1988,7 @@ useEffect(() => {
         {modelMenu ? (
           <>
             <div style={{ position: "fixed", inset: 0, zIndex: 55 }} onClick={() => setModelMenu(false)} />
-            <div className="menu open" style={{ position: "fixed", top: menuPos.top, left: menuPos.left }}>
+            <div ref={menuRef} className="menu open" style={{ position: "fixed", top: menuPos.top, left: menuPos.left }}>
               {MODELS.map((m) => (
                 <button
                   key={m.id}
