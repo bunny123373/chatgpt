@@ -5304,6 +5304,13 @@ html[data-theme="dark"] .msg.user .body::before {
   .land-tool-link { padding: 10px 11px; font-size: 13.5px; }
 }
 
+/* Phones only: the six capability cards are desktop/tablet reading. The
+   header "What it does" link that points at them is already hidden at this
+   width, so nothing is left dangling. */
+@media (max-width: 620px) {
+  .land-caps { display: none; }
+}
+
 /* Phones: the arrow is noise on a touch screen, and the type needs room. */
 @media (max-width: 559px) {
   .land-tool-grid { gap: 10px; }
