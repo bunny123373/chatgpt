@@ -4903,3 +4903,275 @@ html[data-theme="dark"] .tp-stats .over { color: #ff8a80; }
   .ask-bubble-thumb { width: 46px; height: 46px; }
   .ask-bubble-x { width: 44px; }
 }
+/* ============================== Landing page ============================= */
+.landing {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.land-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px clamp(16px, 5vw, 40px);
+}
+.land-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.land-bar-right { display: flex; align-items: center; gap: 8px; }
+.land-link {
+  font-size: 13.5px;
+  color: var(--muted);
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+.land-link:hover { color: var(--text); background: var(--panel2); }
+
+.land-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 20px;
+  border-radius: 11px;
+  font-size: 14.5px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--panel2);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
+}
+.land-btn:hover:not(:disabled) { border-color: var(--border2); transform: translateY(-1px); }
+.land-btn:disabled { opacity: 0.6; cursor: default; }
+.land-btn.primary {
+  background: var(--send-bg);
+  color: #fff;
+  border-color: transparent;
+  padding: 12px 24px;
+  font-size: 15px;
+}
+html[data-theme="dark"] .land-btn.primary { color: #0f0f0f; }
+.land-btn.ghost { background: transparent; }
+.land-btn.sm { padding: 8px 14px; font-size: 13.5px; }
+
+.land-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: clamp(32px, 9vh, 90px) 20px clamp(28px, 6vh, 60px);
+  max-width: 760px;
+  margin: 0 auto;
+  width: 100%;
+}
+.land-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 18px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel2);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.land-title {
+  margin: 0 0 18px;
+  font-size: clamp(32px, 7.2vw, 60px);
+  line-height: 1.06;
+  font-weight: 650;
+  letter-spacing: -0.035em;
+}
+.land-title-accent {
+  background: linear-gradient(96deg, var(--accent), color-mix(in srgb, var(--accent) 45%, var(--text)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.land-sub {
+  margin: 0 0 30px;
+  max-width: 58ch;
+  font-size: clamp(14.5px, 2.2vw, 17px);
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.land-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+.land-model { position: relative; }
+.land-model-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 50px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--field);
+  color: var(--text);
+  font-size: 14.5px;
+  cursor: pointer;
+}
+.land-model-btn:hover { border-color: var(--border2); }
+.land-model-label { font-weight: 500; }
+.land-model-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel2);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.land-caret { color: var(--muted); font-size: 11px; }
+.land-menu-backdrop { position: fixed; inset: 0; z-index: 58; }
+.land-model-menu {
+  position: absolute;
+  z-index: 60;
+  width: min(330px, calc(100vw - 24px));
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 13px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.34);
+  animation: acct-pop 0.12s ease;
+}
+.land-model-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 9px;
+  text-align: left;
+  color: var(--text);
+}
+.land-model-item:hover { background: var(--panel); }
+.land-model-item.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.land-model-item span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.land-model-item b { font-size: 13.5px; font-weight: 500; }
+.land-model-item em { font-style: normal; font-size: 11.5px; color: var(--muted); }
+.land-model-item i {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.land-note {
+  margin: 20px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.land-caps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  padding: clamp(24px, 5vh, 48px) clamp(16px, 5vw, 40px);
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
+}
+.land-cap {
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel2);
+}
+.land-cap-icon { font-size: 17px; color: var(--accent); line-height: 1; }
+.land-cap h2 {
+  margin: 10px 0 6px;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.land-cap p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--muted); }
+
+.land-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px clamp(16px, 5vw, 40px) calc(18px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+@media (max-width: 620px) {
+  .land-link { display: none; }
+  .land-cta { flex-direction: column; align-items: stretch; }
+  .land-model, .land-model-btn, .land-btn.primary { width: 100%; }
+  .land-model-btn { justify-content: space-between; }
+  .land-caps { grid-template-columns: 1fr; }
+  .land-foot { flex-direction: column; align-items: flex-start; }
+}
+
+/* ====================== Chat bubble restyle ============================== */
+/* User messages sit in a soft card with a gradient edge; assistant replies
+   run full width with no bubble, so long answers read like a document. */
+.msg.user .body {
+  position: relative;
+  max-width: min(78%, 620px);
+  padding: 11px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(168deg,
+      color-mix(in srgb, var(--user-bubble) 88%, var(--accent) 12%),
+      var(--user-bubble));
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.10),
+    0 6px 18px -8px rgba(0, 0, 0, 0.28);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.msg.user .body:hover {
+  border-color: var(--border2);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    0 10px 26px -10px rgba(0, 0, 0, 0.34);
+}
+/* Hairline highlight along the top edge, so the card reads as raised. */
+.msg.user .body::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  border-radius: 18px 18px 0 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
+  pointer-events: none;
+}
+html[data-theme="dark"] .msg.user .body::before {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.10), transparent);
+}
+/* Replies: no card at all, just a comfortable reading measure. */
+.msg.assistant .body { max-width: 100%; }
+.msg.assistant .content { max-width: 74ch; }
+
+@media (max-width: 620px) {
+  .msg.user .body { max-width: 90%; padding: 10px 14px; }
+  .msg.assistant .content { max-width: 100%; }
+}

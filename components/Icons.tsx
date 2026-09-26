@@ -73,6 +73,20 @@ export const LibraryIcon = ({ size = 16 }: { size?: number }) => (
   </svg>
 );
 
+export const ArrowIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 12h15" />
+    <path d="M13 6l6 6-6 6" />
+  </svg>
+);
+
+export const SparkIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2.5l1.9 5.1 5.1 1.9-5.1 1.9L12 16.5l-1.9-5.1L5 9.5l5.1-1.9L12 2.5z" />
+    <path d="M18.5 15l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9.9-2.4z" />
+  </svg>
+);
+
 export const PlusIcon = ({ size = 18 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <path d="M12 5v14M5 12h14" />
