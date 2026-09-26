@@ -408,17 +408,17 @@ function MessageRow({
   return (
     <div className={`msg ${isUser ? "user msg-sent" : "assistant"}${busy ? " msg-streaming" : ""}${msg.pinned ? " pinned" : ""}`}>
       {isUser ? (
-        <>
+        <div className="msg-col">
           {body}
           <div className="who">{initial}</div>
-        </>
+        </div>
       ) : (
-        <>
+        <div className="msg-col">
           <div className="who">
             <ChatGPTLogo size={15} />
           </div>
           {body}
-        </>
+        </div>
       )}
     </div>
   );

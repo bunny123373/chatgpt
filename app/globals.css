@@ -5205,6 +5205,32 @@ html[data-theme="dark"] .land-btn.primary { color: #0f0f0f; }
 .msg.assistant .body { max-width: 100%; }
 .msg.assistant .content { max-width: 74ch; }
 
+/* The bubble and its action row stack vertically.
+   .msg is a row flex box and .msg-actions is a sibling of .body, so the
+   copy/edit buttons used to sit BESIDE the bubble. Worse, they were hidden with
+   opacity:0, which still reserves layout space, so every sent message was pushed
+   left of the right edge by an invisible ~90px button row. Stacking them puts
+   the controls below the bubble, outside its fill, and costs no width at all. */
+.msg-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+}
+.msg.assistant .msg-col { flex: 1; }
+/* Sent messages shrink to the bubble and keep it hard against the right edge. */
+.msg.user .msg-col { flex: 0 1 auto; }
+/* Line the controls up with the left edge of the bubble above them, which is
+   where ChatGPT puts them. align-self keeps them from stretching across a wide
+   reply. */
+.msg-actions { align-self: flex-start; }
+
+/* .body carried lex: 1 from when it was a direct child of the row. Inside
+   this column that would mean flex-grow along the BLOCK axis, so the bubble
+   could collapse toward zero height. Pin it to content size in both axes:
+   flex-grow 0, flex-shrink 0, basis auto. Nothing may stretch or squash it. */
+.msg-col > .body { flex: 0 0 auto; }
+
 @media (max-width: 620px) {
   .msg.user .body { max-width: 90%; padding: 9px 14px; }
   .msg.assistant .content { max-width: 100%; }
