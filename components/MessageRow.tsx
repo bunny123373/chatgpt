@@ -251,39 +251,27 @@ function MessageRow({
               {msg.researchSources ? (
                 <p className="research-note">Based on {msg.researchSources} web sources</p>
               ) : null}
-              {!isUser && !busy && !empty && model ? (
-                /* Friendly name only. The raw id names the provider, so it is
-                   never rendered, and never in the tooltip either. */
-                <p className="model-tag" title={`Generated with ${model}`}>
-                  via {model}
-                </p>
-              ) : null}
-              {msg.toolsUsed && msg.toolsUsed.length ? (
-                <div className="tools-used">
-                  {msg.toolsUsed.map((t) => (
-                    <span key={t} title={`The model called the "${t}" tool for this answer`}>
-                      ⚙ {t.replace(/_/g, " ")}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {showUsage && msg.usage ? (
-                <p className="usage-tag" title="Token usage and estimated cost for this reply">
-                  {msg.usage.totalTokens ? `${msg.usage.totalTokens.toLocaleString()} tokens` : null}
-                  {msg.usage.totalTokens && msg.usage.costUsd !== undefined ? " · " : null}
-                  {msg.usage.costUsd !== undefined
-                    ? msg.usage.costUsd === 0
-                      ? "free"
-                      : `$${msg.usage.costUsd.toFixed(4)}`
-                    : null}
-                  {msg.mode ? ` · ${msg.mode} mode` : null}
-                </p>
-              ) : null}
+              {/* model-tag / tools-used / usage-tag moved OUT of the message
+                  body into the footer below it -- see `meta` near the return. */}
+              {/* usage-tag moved out too -- see `meta` near the return. */}
             </>
           )}
         </div>
       )}
+    </div>
+  );
 
+  /**
+   * Copy/edit, and the thumbs up/down pair.
+   *
+   * These used to be the last children of .body, which put them INSIDE the
+   * bubble: for a sent message the controls were drawn on top of the coloured
+   * fill, and they inflated the pill's height. They now sit outside .body, in
+   * the same footer gutter as the metadata, so the bubble contains the message
+   * and nothing else.
+   */
+  const controls = (
+    <>
       {!busy && !empty ? (
         <div className="msg-actions" role="group" aria-label="Message actions">
           <button type="button" title="Copy" aria-label="Copy" onClick={() => onCopy(msg.content)}>
@@ -402,24 +390,72 @@ function MessageRow({
           ) : null}
         </div>
       ) : null}
-    </div>
+    </>
   );
+
+  /**
+   * Message metadata: which model answered, which tools it called, token/cost.
+   *
+   * These used to be the last children of .content, so they were part of the
+   * message body and inherited its measure. They now render in a footer below
+   * the message, outside the body, alongside the copy/edit controls -- so the
+   * prose is the only thing in the bubble and the metadata reads as chrome
+   * rather than as something the assistant wrote.
+   */
+  const meta = !busy && !empty ? (
+    <div className="msg-meta">
+      {!isUser && model ? (
+        /* Friendly name only. The raw id names the provider, so it is never
+           rendered, and never in the tooltip either. */
+        <p className="model-tag" title={`Generated with ${model}`}>
+          via {model}
+        </p>
+      ) : null}
+      {msg.toolsUsed && msg.toolsUsed.length ? (
+        <div className="tools-used">
+          {msg.toolsUsed.map((t) => (
+            <span key={t} title={`The model called the "${t}" tool for this answer`}>
+              ⚙ {t.replace(/_/g, " ")}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {showUsage && msg.usage ? (
+        <p className="usage-tag" title="Token usage and estimated cost for this reply">
+          {msg.usage.totalTokens ? `${msg.usage.totalTokens.toLocaleString()} tokens` : null}
+          {msg.usage.totalTokens && msg.usage.costUsd !== undefined ? " · " : null}
+          {msg.usage.costUsd !== undefined
+            ? msg.usage.costUsd === 0
+              ? "free"
+              : `$${msg.usage.costUsd.toFixed(4)}`
+            : null}
+          {msg.mode ? ` · ${msg.mode} mode` : null}
+        </p>
+      ) : null}
+    </div>
+  ) : null;
 
   return (
     <div className={`msg ${isUser ? "user msg-sent" : "assistant"}${busy ? " msg-streaming" : ""}${msg.pinned ? " pinned" : ""}`}>
-      {isUser ? (
-        <div className="msg-col">
-          {body}
-          <div className="who">{initial}</div>
+      <div className="msg-col">
+        {isUser ? (
+          <>
+            {body}
+            <div className="who">{initial}</div>
+          </>
+        ) : (
+          <>
+            <div className="who">
+              <ChatGPTLogo size={15} />
+            </div>
+            {body}
+          </>
+        )}
+        <div className="msg-foot">
+          {meta}
+          {controls}
         </div>
-      ) : (
-        <div className="msg-col">
-          <div className="who">
-            <ChatGPTLogo size={15} />
-          </div>
-          {body}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

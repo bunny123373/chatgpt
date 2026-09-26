@@ -5225,11 +5225,52 @@ html[data-theme="dark"] .land-btn.primary { color: #0f0f0f; }
    reply. */
 .msg-actions { align-self: flex-start; }
 
-/* .body carried lex: 1 from when it was a direct child of the row. Inside
+/* .body carried flex: 1 from when it was a direct child of the row. Inside
    this column that would mean flex-grow along the BLOCK axis, so the bubble
    could collapse toward zero height. Pin it to content size in both axes:
    flex-grow 0, flex-shrink 0, basis auto. Nothing may stretch or squash it. */
 .msg-col > .body { flex: 0 0 auto; }
+
+/* One footer line under the message holding the metadata and the controls.
+   Previously .msg-actions and .msg-feedback were the last children of .body,
+   so for a sent message the copy/edit buttons were drawn on top of the
+   coloured fill and inflated the pill's height. They now live out here,
+   outside .body, on a single line that wraps when it has to. */
+.msg-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 6px;
+}
+.msg-foot:empty { display: none; }
+/* These three each carried a top margin for when they were stacked as block
+   children. They now sit side by side in .msg-foot, which supplies its own
+   gap, so the old margins would double the spacing. */
+.msg-foot .msg-actions,
+.msg-foot .msg-feedback,
+.msg-foot .msg-meta { margin-top: 0; }
+
+/* Metadata footer: model, tools called, token/cost. Sits below the message,
+   outside the body, in the same gutter as the copy/edit controls. Its own
+   top margin replaces the per-block margins these elements carried when they
+   were the last children of .content, so the spacing is unchanged in total. */
+.msg-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 8px;
+}
+.msg-meta > * { margin: 0; }
+.msg-meta:empty { display: none; }
+/* Keep the footer as quiet as the controls it sits with. */
+.msg-meta .model-tag,
+.msg-meta .tools-used,
+.msg-meta .usage-tag { opacity: 0.75; }
+.msg:hover .msg-meta .model-tag,
+.msg:hover .msg-meta .tools-used,
+.msg:hover .msg-meta .usage-tag { opacity: 1; }
 
 @media (max-width: 620px) {
   .msg.user .body { max-width: 90%; padding: 9px 14px; }
