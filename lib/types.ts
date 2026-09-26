@@ -180,6 +180,20 @@ export const BUBBLE_COLORS: Array<{ value: BubbleColor; label: string; swatch: s
   { value: "rose", label: "Rose", swatch: "#f43f5e" },
 ];
 
+/**
+ * One entry from a provider's /models response.
+ *
+ * The name is the provider's own display name, kept because it is the only
+ * thing that distinguishes one provider model from another in a readable way.
+ * A bare id list made every entry look the same once the id was hidden, which
+ * is what made the picker look like it was ignoring clicks.
+ */
+export interface RemoteModel {
+  id: string;
+  /** Absent when the provider supplies no display name. */
+  name?: string;
+}
+
 export interface Settings {
   apiKey: string;
   baseUrl: string;
@@ -231,7 +245,7 @@ export interface Settings {
    * rather than refetching per open means the chat menu works offline and opens
    * instantly, and there is one list to reason about instead of two that drift.
    */
-  remoteModels?: string[];
+  remoteModels?: RemoteModel[];
 }
 
 /** Signed-in account surfaced from Firebase Auth into the app. */
@@ -327,8 +341,47 @@ export const DEFAULT_SETTINGS: Settings = {
  * "qwen/qwen3.5-flash:free" should not appear in the UI or in exported files.
  * The id is still editable in Settings, where you need to see it to change it.
  */
-export function modelName(id: string): string {
-  return MODELS.find((m) => m.id === id)?.name ?? "Custom model";
+export function modelName(id: string, providerName?: string): string {
+  const curated = MODELS.find((m) => m.id === id)?.name;
+  if (curated) return curated;
+  // The provider's own label, when it sent one. Preferred over anything we
+  // derive from the id, because it is their name for the model and not a guess.
+  if (providerName) return providerName;
+  // Last resort: a readable form of the id, rather than one shared placeholder.
+  //
+  // Returning "Custom model" for anything unrecognised was fine when the only ids
+  // in play were the curated three. Once the picker lists whatever the provider
+  // serves, every entry rendered as the same two words, so picking a different
+  // model looked like the click had done nothing. Showing part of the id keeps
+  // the entries distinguishable without putting the raw id on screen, which is
+  // what the no-model-id rule is actually there to protect.
+  return humanizeModelId(id);
+}
+
+/**
+ * Turn a model id into something a person can tell apart.
+ *
+ * Drops the org prefix and any routing suffix, then breaks hyphens, underscores
+ * and camel case into words. "meta-llama/llama-3.3-70b-instruct:free" becomes
+ * "Llama 3.3 70b Instruct". It is a guess, but a labelled one beats an
+ * undifferentiated placeholder, and the id is still what actually gets sent.
+ */
+export function humanizeModelId(id: string): string {
+  const tail = id.split("/").pop() ?? id;
+  const bare = tail.split(":")[0].replace(/\.(?:q4|q5|q8|fp16|bf16|gguf)$/i, "");
+  // Title-case each hyphen or underscore separated word, and break camel case
+  // inside a word, keeping any digit run as its own token.
+  //
+  // "70B" must not collapse to "7 B" or quietly lose a character. The label is
+  // a readability aid, and mangling a model name is worse than showing it as-is.
+  const words = bare
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .flatMap((w) => w.replace(/([a-z\d])([A-Z])/g, "$1 $2").split(" "))
+    .filter(Boolean)
+    .map((w) => (w.length <= 1 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()));
+  if (!words.length) return id;
+  return words.join(" ");
 }
 
 /** Rough USD per 1M tokens, used when the provider doesn't report usage. */

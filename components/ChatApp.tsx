@@ -43,6 +43,7 @@ import {
   type CanvasDoc,
   type Settings,
   type Usage,
+  humanizeModelId,
 } from "@/lib/types";
 import {
   clearStore,
@@ -1839,18 +1840,32 @@ useEffect(() => {
    * image.
    */
   const remoteModels = settings.remoteModels ?? [];
+  const remoteIds = useMemo(() => new Set(remoteModels.map((m) => m.id)), [remoteModels]);
+  const remoteName = (id: string) => remoteModels.find((m) => m.id === id)?.name;
+
+  /**
+   * The model name to show, resolved in order: a curated name, then the
+   * provider's own display name, then a readable form of the id.
+   *
+   * Without the middle step every provider model rendered as the same
+   * placeholder string, so picking a different one looked like the click had
+   * been ignored. Keeping the names the provider sends is what makes the picker
+   * usable, and it is why /api/test-provider returns them.
+   */
+  const shownModel = modelName(settings.model, remoteName(settings.model));
+
   const modelChoices: { id: string; name: string; desc: string }[] = remoteModels.length
     ? (() => {
         const known = new Map(MODELS.map((m) => [m.id, m]));
-        const out = remoteModels.map((id) => ({
-          id,
-          name: known.get(id)?.name ?? id,
-          desc: known.get(id)?.desc ?? "",
+        const out = remoteModels.map((m) => ({
+          id: m.id,
+          name: known.get(m.id)?.name ?? m.name ?? humanizeModelId(m.id),
+          desc: known.get(m.id)?.desc ?? "",
         }));
         // Curated models the provider does not serve, marked so the choice is
         // not a trap: selecting one will fail, and the label says so first.
         for (const m of MODELS) {
-          if (!remoteModels.includes(m.id)) out.push({ id: m.id, name: m.name, desc: `${m.desc} (not offered by this provider)` });
+          if (!remoteIds.has(m.id)) out.push({ id: m.id, name: m.name, desc: `${m.desc} (not offered by this provider)` });
         }
         return out;
       })()
@@ -1956,8 +1971,8 @@ useEffect(() => {
             <ProviderPicker settings={settings} onChange={setSettings} onNote={notify} />
           </div>
 
-          <button className="model-btn" type="button" ref={modelBtnRef} onClick={openModelMenu} title={modelName(settings.model)}>
-            <span className="mbn">{modelName(settings.model)}</span>
+          <button className="model-btn" type="button" ref={modelBtnRef} onClick={openModelMenu} title={shownModel}>
+            <span className="mbn">{shownModel}</span>
             <span className="chev">▾</span>
           </button>
 
@@ -2135,7 +2150,7 @@ useEffect(() => {
           onSend={() => send()}
           onStop={stop}
           busy={busy}
-          modelLabel={modelName(settings.model)}
+          modelLabel={shownModel}
           attach={attach}
           onAttach={setAttach}
           searching={settings.search}

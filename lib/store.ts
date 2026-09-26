@@ -1,4 +1,4 @@
-import { BUBBLE_COLORS, DEFAULT_SETTINGS, IMAGE_RATIOS, type Chat, type Msg, type Project, type PromptTemplate, type Settings } from "./types";
+import { BUBBLE_COLORS, DEFAULT_SETTINGS, IMAGE_RATIOS, type Chat, type Msg, type Project, type PromptTemplate, type RemoteModel, type Settings } from "./types";
 
 const K_CHATS = "chatgpt2.chats";
 const K_ACTIVE = "chatgpt2.active";
@@ -174,7 +174,17 @@ export function loadSettings(): Settings {
   // an array of strings, so a hand-edited or corrupted blob cannot reach the
   // picker and crash it.
   if (Array.isArray(merged.remoteModels)) {
-    merged.remoteModels = merged.remoteModels.filter((m): m is string => typeof m === "string" && m.length > 0).slice(0, 400);
+    // Entries are objects now, { id, name }, because the provider's display
+    // name is what makes one model distinguishable from another. A bare id
+    // list left every entry rendering as the same placeholder.
+    //
+    // Rebuilt field by field rather than cast: this blob can be hand-edited or
+    // come from an older version that stored plain strings, and a stray string
+    // here would reach the picker as m.id === undefined.
+    merged.remoteModels = merged.remoteModels
+      .filter((m): m is RemoteModel => !!m && typeof m === "object" && typeof (m as RemoteModel).id === "string" && (m as RemoteModel).id.length > 0)
+      .map((m) => ({ id: m.id, ...(typeof m.name === "string" && m.name.trim() ? { name: m.name.trim().slice(0, 120) } : {}) }))
+      .slice(0, 400);
   } else {
     delete merged.remoteModels;
   }

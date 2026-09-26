@@ -70,13 +70,28 @@ export async function POST(req: Request) {
   if (!question) return Response.json({ error: "A question is required." }, { status: 400 });
 
   const model = body.model || "qwen/qwen3.5-flash:free";
-  const apiKey = (body.apiKey || "").trim() || process.env.XKIRO_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || "";
-  const baseUrl = (
-    body.baseUrl?.trim() || process.env.XKIRO_BASE_URL?.trim() || "https://api.xkiro.com/v1"
-  ).replace(/\/+$/, "");
+
+  // Same rule as /api/chat: the server's own key is only usable for the
+  // provider the server is configured for, never forwarded to a host the
+  // client picked. See app/api/chat/route.ts for the longer reason.
+  const serverBaseUrl = (process.env.XKIRO_BASE_URL?.trim() || "https://api.xkiro.com/v1").replace(/\/+$/, "");
+  const baseUrl = (body.baseUrl?.trim() || serverBaseUrl).replace(/\/+$/, "");
+  const sameProvider = baseUrl === serverBaseUrl;
+  const serverKey = sameProvider ? process.env.XKIRO_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || "" : "";
+  const apiKey = (body.apiKey || "").trim() || serverKey;
 
   if (!apiKey) {
-    return Response.json({ error: "Deep Research needs an API key (add it in Settings)." }, { status: 400 });
+    let host = baseUrl;
+    try {
+      host = new URL(baseUrl).hostname; } catch { /* keep the raw string */ }
+    return Response.json(
+      {
+        error: sameProvider
+          ? "Deep Research needs an API key (add it in Settings)."
+          : `Deep Research has no API key for ${host}. Add one for that provider in Settings.`,
+      },
+      { status: 400 },
+    );
   }
 
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };

@@ -26,7 +26,17 @@ interface ModelListResponse {
    * as decimal strings. "0" on both means the model is free. Providers that
    * do not return pricing leave it undefined and nothing is filtered.
    */
-  data?: { id?: string; pricing?: { prompt?: string; completion?: string } }[];
+  data?: {
+    id?: string;
+    /**
+     * Display name, when the provider supplies one. OpenRouter does, and it is
+     * the only readable label a model has: the id itself is something like
+     * "meta-llama/llama-3.3-70b-instruct:free", and a picker full of those
+     * gives the user nothing they can tell apart at a glance.
+     */
+    name?: string;
+    pricing?: { prompt?: string; completion?: string };
+  }[];
 }
 
 export async function GET(req: Request) {
@@ -99,9 +109,15 @@ export async function GET(req: Request) {
     }
 
     const json = (await res.json()) as ModelListResponse;
-    const all = Array.isArray(json.data)
-      ? [...new Set(json.data.map((m) => m?.id).filter((id): id is string => typeof id === "string" && id.length > 0))].sort()
-      : [];
+    // id -> display name, built first so the filter below can still work on plain
+    // ids while the response carries a label for each one.
+    const nameById = new Map<string, string>();
+    for (const m of json.data ?? []) {
+      if (typeof m?.id !== "string" || !m.id) continue;
+      const n = typeof m.name === "string" ? m.name.trim() : "";
+      if (n) nameById.set(m.id, n);
+    }
+    const all = [...nameById.keys()].sort();
 
     // Free-only, but only when the provider actually tells us the price.
     //
@@ -125,7 +141,7 @@ export async function GET(req: Request) {
       count: models.length,
       total: all.length,
       freeOnly,
-      models: models.slice(0, 400),
+      models: models.slice(0, 400).map((id) => ({ id, name: nameById.get(id) })),
     });
   } catch (e) {
     const aborted = e instanceof Error && e.name === "AbortError";

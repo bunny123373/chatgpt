@@ -4,7 +4,8 @@ import { PROVIDERS, providerForUrl } from "@/lib/providers";
 import { playSound, unlockAudio } from "@/lib/sound";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BUBBLE_COLORS, DEFAULT_SETTINGS, MODELS, type AuthUser, type Project, type Settings } from "@/lib/types";
+import { BUBBLE_COLORS, DEFAULT_SETTINGS, MODELS, humanizeModelId, type AuthUser, type Project, type Settings } from "@/lib/types";
+import type { ProbeResult } from "@/lib/providerProbe";
 import { BackIcon, TrashIcon } from "./Icons";
 
 interface Props {
@@ -65,7 +66,7 @@ export default function SettingsModal({
   const [syncing, setSyncing] = useState(false);
   const avatarInput = useRef<HTMLInputElement | null>(null);
   // Provider probe: connection result plus whatever /models returned.
-  const [probe, setProbe] = useState<{ ok: boolean; error?: string; status?: number; count?: number; total?: number; freeOnly?: boolean; models?: string[]; busy?: boolean } | null>(null);
+  const [probe, setProbe] = useState<ProbeResult & { busy?: boolean } | null>(null);
   const [fetchingModels, setFetchingModels] = useState(false);
   const provider = providerForUrl(settings.baseUrl);
 
@@ -164,7 +165,7 @@ export default function SettingsModal({
           "x-base-url": settings.baseUrl.trim(),
         },
       });
-      const d = (await r.json()) as { ok: boolean; error?: string; status?: number; count?: number; total?: number; freeOnly?: boolean; models?: string[] };
+      const d = (await r.json()) as ProbeResult;
       setProbe(d);
       // Cache it on settings, because the chat's model menu reads the same list.
       // Without this the picker here shows the provider's models and the one in
@@ -174,8 +175,8 @@ export default function SettingsModal({
       // A working provider is a good moment to adopt its model list, but only
       // if the current model is not one it serves, so a working setup is never
       // silently changed out from under the user.
-      if (d.ok && d.models?.length && !d.models.includes(settings.model)) {
-        set("model", d.models[0]);
+      if (d.ok && d.models?.length && !d.models.some((m) => m.id === settings.model)) {
+        set("model", d.models[0].id);
       }
     } catch {
       setProbe({ ok: false, error: "Could not reach this site to run the test." });
@@ -331,14 +332,14 @@ export default function SettingsModal({
                     <div className="model-grid">
                       {probe.models.slice(0, 60).map((m) => (
                         <button
-                          key={m}
+                          key={m.id}
                           type="button"
-                          className={`model-chip${settings.model === m ? " on" : ""}`}
-                          aria-pressed={settings.model === m}
-                          onClick={() => set("model", m)}
-                          title={m}
+                          className={`model-chip${settings.model === m.id ? " on" : ""}`}
+                          aria-pressed={settings.model === m.id}
+                          onClick={() => set("model", m.id)}
+                          title={m.id}
                         >
-                          {m}
+                          {m.name ?? humanizeModelId(m.id)}
                         </button>
                       ))}
                     </div>

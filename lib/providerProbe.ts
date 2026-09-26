@@ -26,7 +26,10 @@ export interface ProbeResult {
   total?: number;
   /** True when the provider reported prices and the list was filtered to free. */
   freeOnly?: boolean;
-  models?: string[];
+  /**
+   * Id plus the provider's own display name, when it sent one.
+   */
+  models?: { id: string; name?: string }[];
 }
 
 export async function fetchProviderModels(apiKey: string, baseUrl: string): Promise<ProbeResult> {

@@ -123,19 +123,33 @@ export async function POST(req: Request) {
   const temperature = mode === "thinking" ? Math.min(baseTemperature, 0.6) : baseTemperature;
   const maxTokens = mode === "thinking" ? 8192 : undefined;
 
+  // A key set on the server belongs to the provider that server is configured
+  // for. It must not be forwarded to whatever host the client asked for.
+  //
+  // The two are resolved separately on purpose. Previously the key fell back to
+  // XKIRO_API_KEY no matter what base URL arrived, so pointing the app at
+  // OpenRouter without adding a key there sent the xKiro secret to
+  // openrouter.ai. That surfaced as a confusing "Missing Authentication header"
+  // 401, but the real problem was one provider's credential leaving for a host
+  // it was never issued for.
+  const serverBaseUrl = (process.env.XKIRO_BASE_URL?.trim() || process.env.OPENAI_BASE_URL?.trim() || "https://api.xkiro.com/v1").replace(/\/+$/, "");
+  const baseUrl = (req.headers.get("x-base-url")?.trim() || serverBaseUrl).replace(/\/+$/, "");
+  const sameProvider = baseUrl === serverBaseUrl;
   const headerKey = req.headers.get("x-api-key")?.trim() || "";
-  const apiKey = headerKey || process.env.XKIRO_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || "";
-  const baseUrl = (
-    req.headers.get("x-base-url")?.trim() ||
-    process.env.XKIRO_BASE_URL?.trim() ||
-    process.env.OPENAI_BASE_URL?.trim() ||
-    "https://api.xkiro.com/v1"
-  ).replace(/\/+$/, "");
+  const serverKey = sameProvider ? process.env.XKIRO_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || "" : "";
+  const apiKey = headerKey || serverKey;
 
   // Real service only: no key means a clear error, never a canned answer.
   if (!apiKey) {
+    let host = baseUrl;
+    try {
+      host = new URL(baseUrl).hostname; } catch { /* keep the raw string */ }
     return Response.json(
-      { error: "No API key is configured on the server. Set XKIRO_API_KEY and restart." },
+      {
+        error: sameProvider
+          ? "No API key is configured on the server. Set XKIRO_API_KEY and restart."
+          : `No API key for ${host}. Add one for that provider in Settings, then send again.`,
+      },
       { status: 503 },
     );
   }
