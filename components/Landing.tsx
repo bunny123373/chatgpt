@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MODELS } from "@/lib/types";
 import { ChatGPTLogo, ArrowIcon, SparkIcon } from "./Icons";
@@ -45,6 +46,85 @@ const CAPABILITIES: { title: string; body: string; icon: string }[] = [
     title: "Your data stays put",
     body: "Chats live in local storage. Nothing is uploaded except the prompts you send, and image files never leave the browser.",
     icon: "○",
+  },
+];
+
+interface ToolItem {
+  label: string;
+  /** Where it lives in the app. `tools` opens the standalone page. */
+  href: string;
+}
+
+interface ToolGroup {
+  title: string;
+  blurb: string;
+  items: ToolItem[];
+}
+
+/** Deep links: /chat?tools=<tab> opens the Tools page on that tab. */
+const TOOL_GROUPS: ToolGroup[] = [
+  {
+    title: "Chat",
+    blurb: "Everything about keeping track of a conversation.",
+    items: [
+      { label: "Projects", href: "/chat?settings=projects" },
+      { label: "Custom instructions", href: "/chat?settings=general" },
+      { label: "Pin and branch a reply", href: "/chat" },
+      { label: "Tags", href: "/chat" },
+      { label: "Search messages", href: "/chat" },
+      { label: "Share a conversation", href: "/chat" },
+      { label: "Quick and Thinking modes", href: "/chat" },
+      { label: "Read aloud", href: "/chat" },
+    ],
+  },
+  {
+    title: "Images",
+    blurb: "Make them, fetch them, shrink them, change their format.",
+    items: [
+      { label: "Create an image", href: "/chat?img=1" },
+      { label: "Download from a URL", href: "/chat?tools=image&dir=download" },
+      { label: "Convert and resize", href: "/chat?tools=image" },
+      { label: "Image variations", href: "/chat" },
+      { label: "Library of past images", href: "/chat" },
+    ],
+  },
+  {
+    title: "Documents",
+    blurb: "Real PDF files, downloaded straight to your device.",
+    items: [
+      { label: "Anything to PDF", href: "/chat?tools=pdf" },
+      { label: "Images to one PDF", href: "/chat?tools=pdf" },
+      { label: "PDF to page images", href: "/chat?tools=pdf" },
+      { label: "Export a chat as PDF", href: "/chat" },
+      { label: "Attach PDF, DOCX or code", href: "/chat" },
+    ],
+  },
+  {
+    title: "Data",
+    blurb: "Run code on your own data, with no upload.",
+    items: [
+      { label: "CSV analysis sandbox", href: "/chat?tools=data" },
+      { label: "Canvas", href: "/chat" },
+      { label: "Import and export chats", href: "/chat?settings=data" },
+    ],
+  },
+  {
+    title: "Utilities",
+    blurb: "Small tools that need no account and no network.",
+    items: [
+      { label: "Colour and contrast check", href: "/chat?tools=colour" },
+      { label: "QR code generator", href: "/chat?tools=qr" },
+      { label: "URL parser and builder", href: "/chat?tools=url" },
+    ],
+  },
+  {
+    title: "Research",
+    blurb: "Go and look things up properly.",
+    items: [
+      { label: "Deep Research", href: "/chat" },
+      { label: "Web search", href: "/chat" },
+      { label: "Calculator and converters", href: "/chat" },
+    ],
   },
 ];
 
@@ -133,6 +213,9 @@ export default function Landing() {
         <div className="land-bar-right">
           <a className="land-link" href="#what">
             What it does
+          </a>
+          <a className="land-link" href="#tools">
+            All tools
           </a>
           <button type="button" className="land-btn ghost sm" onClick={() => router.push("/chat")}>
             Open the app
@@ -225,6 +308,38 @@ export default function Landing() {
             <p>{c.body}</p>
           </article>
         ))}
+      </section>
+
+      <section className="land-tools" id="tools">
+        <header className="land-tools-head">
+          <p className="land-eyebrow">Everything included</p>
+          <h2>All the tools, in one list</h2>
+          <p className="land-tools-sub">
+            No tiers, no credits, no upsell. Every one of these is in the app you are about to open, and most work without
+            signing in.
+          </p>
+        </header>
+
+        <div className="land-tool-grid">
+          {TOOL_GROUPS.map((g) => (
+            <article key={g.title} className="land-tool-group">
+              <h3>{g.title}</h3>
+              <p className="land-tool-blurb">{g.blurb}</p>
+              <ul>
+                {g.items.map((item) => (
+                  <li key={item.label}>
+                    <Link href={item.href} className="land-tool-link">
+                      <span>{item.label}</span>
+                      <span className="land-tool-arrow" aria-hidden="true">
+                        →
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
       </section>
 
       <footer className="land-foot">

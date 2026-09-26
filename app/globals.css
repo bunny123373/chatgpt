@@ -53,7 +53,10 @@ body {
   font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
+  /* NOT `overflow: hidden` here. The chat app does not need it -- .app is
+     exactly 100dvh and scrolls its thread internally -- but the landing page
+     scrolls the document, and clipping the body made everything below the
+     fold unreachable on every device. */
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 :focus-visible {
@@ -4911,8 +4914,12 @@ html[data-theme="dark"] .tp-stats .over { color: #ff8a80; }
   flex-direction: column;
   background: var(--bg);
   color: var(--text);
-  /* Nothing on this page may scroll sideways. */
+  /* Stop sideways overflow WITHOUT creating a scroll container. Plain
+     `overflow-x: hidden` computes the other axis to `auto`, which on iOS
+     traps page scrolling inside this element and makes the page feel stuck.
+     `clip` contains the overflow and leaves normal scrolling alone. */
   overflow-x: hidden;
+  overflow-x: clip;
 }
 
 .land-bar {
@@ -5201,4 +5208,101 @@ html[data-theme="dark"] .msg.user .body::before {
 @media (max-width: 620px) {
   .msg.user .body { max-width: 90%; padding: 10px 14px; }
   .msg.assistant .content { max-width: 100%; }
+}
+/* ====================== Landing: all-tools section ======================= */
+.land-tools {
+  padding: clamp(30px, 7vh, 70px) clamp(16px, 5vw, 40px) clamp(34px, 7vh, 70px);
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
+  border-top: 1px solid var(--border);
+}
+.land-tools-head {
+  max-width: 62ch;
+  margin: 0 auto clamp(22px, 4vh, 38px);
+  text-align: center;
+}
+.land-tools-head .land-eyebrow { margin-bottom: 12px; }
+.land-tools-head h2 {
+  margin: 0 0 10px;
+  font-size: clamp(22px, 4.4vw, 34px);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.land-tools-sub {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.land-tool-grid {
+  display: grid;
+  /* Phone 1 column, small tablet 2, desktop 3. */
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+.land-tool-group {
+  padding: 16px 16px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel2);
+  min-width: 0;
+}
+.land-tool-group h3 {
+  margin: 0 0 3px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.land-tool-blurb {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.land-tool-group ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.land-tool-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  color: var(--text);
+  transition: background 0.14s, color 0.14s;
+}
+.land-tool-link:hover { background: var(--bg); }
+.land-tool-link:hover .land-tool-arrow { opacity: 1; transform: translateX(0); color: var(--accent); }
+.land-tool-link > span:first-child { min-width: 0; }
+.land-tool-arrow {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 13px;
+  opacity: 0.55;
+  transform: translateX(-2px);
+  transition: opacity 0.14s, transform 0.14s, color 0.14s;
+}
+
+/* Small tablet: two columns. */
+@media (min-width: 560px) {
+  .land-tool-grid { grid-template-columns: repeat(2, 1fr); }
+}
+/* Desktop: three columns, a little air between them. */
+@media (min-width: 900px) {
+  .land-tool-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .land-tool-group { padding: 20px 18px 14px; }
+  .land-tool-link { padding: 10px 11px; font-size: 13.5px; }
+}
+
+/* Phones: the arrow is noise on a touch screen, and the type needs room. */
+@media (max-width: 559px) {
+  .land-tool-grid { gap: 10px; }
+  .land-tool-group { padding: 14px 13px 10px; }
+  .land-tool-link { padding: 11px 10px; min-height: 44px; font-size: 14px; }
+  .land-tool-arrow { display: none; }
+  .land-tools-head h2 { font-size: 22px; }
+  .land-tools-sub { font-size: 13.5px; }
 }

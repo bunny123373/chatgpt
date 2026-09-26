@@ -618,6 +618,31 @@ chatsRef.current = chats;
     setToolsOpen(true);
   };
 
+  /**
+   * Deep links from the landing page, e.g. /chat?tools=colour or
+   * /chat?tools=image&dir=download. Read from location.search rather than
+   * useSearchParams so no Suspense boundary is needed.
+   */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tools");
+    if (tab) {
+      const valid = ["pdf", "image", "colour", "qr", "url", "data", "make"] as const;
+      if ((valid as readonly string[]).includes(tab)) {
+        openTools(tab as typeof toolsTab, params.get("dir") === "download" ? "download" : undefined);
+      }
+    } else if (params.get("settings")) {
+      const section = params.get("settings");
+      if (section === "projects" || section === "data" || section === "general") {
+        setSettingsTab(section);
+        setSettingsOpen(true);
+      }
+    } else if (params.get("img") === "1") {
+      newChat();
+      setImgMode(true);
+    }
+  }, []);
+
   // An image URL found in the composer draft, attached to the next message.
   // Mirrored into a ref so the "Ask about this image" bubble can fire a send in
   // the same tick, without waiting for React to flush the state.
