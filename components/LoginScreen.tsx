@@ -334,7 +334,7 @@ export default function LoginScreen({
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
-      <div role="dialog" aria-modal="true" aria-label="Log in">
+      <div className="scale-in" role="dialog" aria-modal="true" aria-label="Log in">
         {body}
       </div>
     </div>

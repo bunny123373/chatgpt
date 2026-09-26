@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { printImagesPdf, filesToImages, type PdfImage } from "@/lib/imagesPdf";
+import { useDismiss } from "@/lib/useDismiss";
 import { FileIcon } from "./Icons";
 import { CloseIcon, SearchIcon, TrashIcon, MoreIcon, PinIcon, PencilIcon, DownloadIcon } from "./Icons";
 import type { Msg } from "@/lib/types";
@@ -163,7 +164,8 @@ export default function Library({
     [audio, needle]
   );
 
-  if (!open) return null;
+  const { render, closing, requestClose } = useDismiss(open, onClose);
+  if (!render) return null;
 
   const commitRename = (id: string) => {
     const next = renameText.trim().slice(0, 80);
@@ -185,11 +187,11 @@ export default function Library({
   const counts = { chats: filteredChats.length, images: filteredImages.length, audio: filteredAudio.length };
 
   return (
-    <div className="lib" role="dialog" aria-modal="true" aria-label="Library">
+    <div className={`lib ov${closing ? " is-closing" : ""}`} role="dialog" aria-modal="true" aria-label="Library">
       <aside className="lib-side">
         <div className="lib-side-head">
           <span>Library</span>
-          <button className="lib-x" type="button" onClick={onClose} title="Close library" aria-label="Close library">
+          <button className="lib-x" type="button" onClick={requestClose} title="Close library" aria-label="Close library">
             <CloseIcon size={16} />
           </button>
         </div>

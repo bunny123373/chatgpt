@@ -5431,3 +5431,129 @@ html[data-theme="dark"] .msg.user .body::before {
 .land-tool-group.tone-rose   { --tone: #e2688a; }
 .land-tool-group.tone-green  { --tone: #3aa96b; }
 .land-tool-group.tone-accent { --tone: var(--accent); }
+/* ==========================================================================
+   One animation system for the whole app.
+
+   Everything animated in the app uses these tokens, so timings and easing
+   match instead of drifting apart across 30 ad-hoc keyframes. All of it is
+   disabled under prefers-reduced-motion at the end of this block.
+   ========================================================================== */
+
+:root {
+  --an-fast: 130ms;
+  --an-base: 200ms;
+  --an-slow: 300ms;
+  --an-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --an-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes an-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes an-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes an-rise-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes an-rise-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(6px) scale(0.99); }
+}
+@keyframes an-pop-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes an-pop-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+@keyframes an-swap-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes an-slide-in-right {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes an-slide-out-right {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(10px); }
+}
+@keyframes an-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Every full-screen overlay: the chat app, Tools, the landing page, the
+   library, the auth gate. */
+.ov {
+  animation: an-rise-in var(--an-base) var(--an-ease-out) both;
+}
+.ov.is-closing {
+  animation: an-rise-out var(--an-fast) var(--an-ease) both;
+  pointer-events: none;
+}
+
+/* Panels that arrive from the top: popovers, menus, the model list. */
+.pop {
+  animation: an-pop-in var(--an-fast) var(--an-ease-out) both;
+}
+.pop.is-closing { animation: an-pop-out var(--an-fast) var(--an-ease) both; }
+
+/* Slide-in panels from the right. */
+.slide-r { animation: an-slide-in-right var(--an-base) var(--an-ease-out) both; }
+.slide-r.is-closing { animation: an-slide-out-right var(--an-fast) var(--an-ease) both; }
+
+/* Content that swaps when a tab changes, so the change reads as a change. */
+.swap { animation: an-swap-in var(--an-base) var(--an-ease-out) both; }
+.fade-up { animation: an-rise-in var(--an-base) var(--an-ease-out) both; }
+.fade-in { animation: an-fade-in var(--an-base) var(--an-ease) both; }
+.scale-in { animation: an-scale-in var(--an-base) var(--an-ease-out) both; }
+
+/* Press feedback, everywhere, so a tap always looks acknowledged. */
+button,
+a,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+label.tp-check {
+  transition:
+    background-color var(--an-fast) var(--an-ease),
+    border-color var(--an-fast) var(--an-ease),
+    color var(--an-fast) var(--an-ease),
+    opacity var(--an-fast) var(--an-ease),
+    box-shadow var(--an-fast) var(--an-ease),
+    transform var(--an-fast) var(--an-ease);
+}
+button:not(:disabled):active,
+a:active,
+[role="button"]:not([aria-disabled="true"]):active,
+[role="tab"]:active,
+[role="menuitem"]:not(:disabled):active {
+  transform: scale(0.97);
+}
+button:focus-visible,
+a:focus-visible,
+[role="tab"]:focus-visible,
+[role="menuitem"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Backdrops fade rather than appearing instantly. */
+.ov-bd {
+  animation: an-fade-in var(--an-fast) var(--an-ease) both;
+}
+.ov-bd.is-closing { animation: an-fade-out var(--an-fast) var(--an-ease) both; }
+
+/* Respect the OS setting. Anything above becomes instant, but transitions on
+   colour are kept so state changes remain legible. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .gen-squircle .gen-beam { opacity: 0.35; }
+}

@@ -1,5 +1,5 @@
 "use client";
-
+import { useDismiss } from "@/lib/useDismiss";
 import { useEffect, useRef, useState } from "react";
 import { BUBBLE_COLORS, DEFAULT_SETTINGS, MODELS, type AuthUser, type Project, type Settings } from "@/lib/types";
 import { BackIcon, TrashIcon } from "./Icons";
@@ -138,24 +138,26 @@ export default function SettingsModal({
     };
   }, [open, settings.apiKey, settings.baseUrl]);
 
+  const { render, closing, requestClose } = useDismiss(open, onClose);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && open) onClose();
+      if (e.key === "Escape" && open) requestClose();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, requestClose]);
 
-  if (!open) return null;
+  if (!render) return null;
 
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => onSave({ ...settings, [k]: v });
   const tabs = TABS.filter((t) => t.id !== "account" || Boolean(user));
 
   return (
-    <div className="settings-page" role="dialog" aria-modal="true" aria-label="Settings">
+    <div className={`settings-page ov${closing ? " is-closing" : ""}`} role="dialog" aria-modal="true" aria-label="Settings">
       <aside className="set-side">
         <div className="set-side-head">
-          <button className="set-back" type="button" onClick={onClose} title="Back to chat" aria-label="Back to chat">
+          <button className="set-back" type="button" onClick={requestClose} title="Back to chat" aria-label="Back to chat">
             <BackIcon />
           </button>
           <span>Settings</span>

@@ -1987,7 +1987,7 @@ chatsRef.current = chats;
 
       {helpOpen ? (
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setHelpOpen(false)}>
-          <div className="modal help-modal" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+          <div className="modal help-modal scale-in" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
             <div className="modal-head">
               <h2>Keyboard shortcuts</h2>
               <button className="icon-btn" type="button" onClick={() => setHelpOpen(false)} title="Close">

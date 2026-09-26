@@ -27,6 +27,7 @@ import {
 } from "@/lib/imageTools";
 import { coerceRows, parseCsv as parseCsvRows, useSandbox } from "@/lib/sandbox";
 import { ColourTools as ColourTab, ImageDownloader, QrTools as QrTab, UrlTools as UrlTab } from "./ToolTabs";
+import { useDismiss } from "@/lib/useDismiss";
 
 type Tab = "pdf" | "image" | "colour" | "qr" | "url" | "data" | "make";
 
@@ -1085,26 +1086,31 @@ export default function ToolsPage({
   imageDir,
 }: GenProps & { onClose: () => void; initialTab?: Tab; imageDir?: "edit" | "download" }) {
   const [tab, setTab] = useState<Tab>(initialTab ?? "pdf");
+  // Plays the exit animation before the parent unmounts the page.
+  const { closing, requestClose } = useDismiss(true, onClose);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") requestClose();
     };
     window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [requestClose]);
+
+  useEffect(() => {
     // Stop the chat behind from scrolling while this overlay is open.
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [onClose]);
+  }, []);
 
   return (
-    <div className="tools-page" role="dialog" aria-modal="true" aria-label="Tools">
+    <div className={`tools-page ov${closing ? " is-closing" : ""}`} role="dialog" aria-modal="true" aria-label="Tools">
       <header className="tp-head">
         <h1>Tools</h1>
-        <button type="button" className="tp-close" onClick={onClose} aria-label="Close tools" title="Close">
+        <button type="button" className="tp-close" onClick={requestClose} aria-label="Close tools" title="Close">
           <CloseIcon />
         </button>
       </header>
@@ -1128,7 +1134,7 @@ export default function ToolsPage({
         })}
       </nav>
 
-      <div className="tp-body">
+      <div className="tp-body swap" key={tab}>
         {tab === "pdf" ? <PdfTools notify={notify} /> : null}
         {tab === "image" ? <ImageTools notify={notify} initialDir={imageDir} /> : null}
         {tab === "colour" ? <ColourTab /> : null}
