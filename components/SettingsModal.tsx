@@ -1,6 +1,7 @@
 "use client";
 import { useDismiss } from "@/lib/useDismiss";
 import { playSound, unlockAudio } from "@/lib/sound";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BUBBLE_COLORS, DEFAULT_SETTINGS, MODELS, type AuthUser, type Project, type Settings } from "@/lib/types";
 import { BackIcon, TrashIcon } from "./Icons";
@@ -647,6 +648,27 @@ export default function SettingsModal({
                   </button>
                 </div>
               </>
+            ) : null}
+
+            {/*
+              Legal links live here rather than only in the landing footer
+              because a signed-in visitor is redirected straight to /chat and
+              never sees the landing page at all. Settings is where someone goes
+              looking for this.
+            */}
+            {tab === "general" ? (
+              <div className="set-legal">
+                <p className="set-desc">
+                  Conversations are stored in this browser, not on a server. Read what that means before putting
+                  anything sensitive in a chat.
+                </p>
+                <div className="set-legal-links">
+                  <Link href="/help">Help</Link>
+                  <Link href="/privacy">Data &amp; privacy</Link>
+                  <Link href="/terms">Terms</Link>
+                  <Link href="/contact">Contact</Link>
+                </div>
+              </div>
             ) : null}
 
             {tab === "account" && user ? (

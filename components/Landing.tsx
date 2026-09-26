@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Backdrop from "./Backdrop";
 import { MODELS } from "@/lib/types";
+import { SITE_NAME } from "@/lib/site";
 import {
   ArrowIcon,
   CanvasIcon,
@@ -382,8 +383,19 @@ export default function Landing() {
       </section>
 
       <footer className="land-foot">
-        <span>Next AI</span>
-        <span>Runs entirely in your browser. No tracking, no accounts required.</span>
+        <div className="land-foot-col">
+          <span className="land-foot-brand">{SITE_NAME}</span>
+          <span className="land-foot-note">
+            Conversations stay in your browser. No tracking, no advertising, no accounts required.
+          </span>
+        </div>
+        <nav className="land-foot-links" aria-label="Site">
+          <Link href="/chat">Open the app</Link>
+          <Link href="/help">Help</Link>
+          <Link href="/privacy">Data &amp; privacy</Link>
+          <Link href="/terms">Terms</Link>
+          <Link href="/contact">Contact</Link>
+        </nav>
       </footer>
     </div>
   );

@@ -1,13 +1,47 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
+/**
+ * Root metadata.
+ *
+ * `metadataBase` is what lets every relative URL elsewhere resolve to an
+ * absolute one, which is what Open Graph and the sitemap need. Without it they
+ * emit bare paths and share cards render with no image.
+ *
+ * `title.template` means a page only has to supply its own short title and gets
+ * the site name appended, rather than every page repeating it by hand and
+ * drifting.
+ */
 export const metadata: Metadata = {
-  title: "Next AI",
-  description: "An AI chat app with streaming, Markdown, and local chat history. Built with Next.js.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: `${SITE_NAME} — AI chat with streaming, images, files and browser-based tools`,
+    template: `%s — ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
   manifest: "/manifest.webmanifest",
+  alternates: { canonical: "/" },
+  // Nothing here is a secret, and the pages are genuinely useful to index.
+  // The API routes are disallowed in robots.ts rather than here.
+  robots: { index: true, follow: true },
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} — AI chat with streaming, images, files and browser-based tools`,
+    description: SITE_DESCRIPTION,
+    url: "/",
+    locale: "en",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
   appleWebApp: {
     capable: true,
-    title: "Next AI",
+    title: SITE_NAME,
     statusBarStyle: "black-translucent",
   },
   icons: {
