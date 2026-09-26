@@ -5188,26 +5188,25 @@ html[data-theme="dark"] .land-btn.primary { color: #0f0f0f; }
    background at all, so a long answer reads like a document. */
 .msg.user .body {
   max-width: min(78%, 560px);
-  /* 6px block padding, matching ChatGPT. The previous 10px made every bubble
-     four pixels taller top and bottom for no reason, and the inherited 1.6
-     line-height made each line of text taller as well. Together those were
-     most of the excess height. */
-  padding: 6px 14px;
+  /* 9px block, 15px inline. 6px was too tight to read comfortably, 10px was
+     taller than it needed to be. The vertical gap gets most of the adjustment
+     because that is the one that crowds a single line of text; the inline
+     padding stays near ChatGPT's so the line length still reads cleanly. */
+  padding: 9px 15px;
   border-radius: 20px;
   background: var(--user-bubble);
   border: 0;
   box-shadow: none;
 }
-/* Tighten the text inside the bubble only. Replies keep the looser 1.6 because
-   long-form prose needs the air, but a sent message is usually one line and
-   reads better snug. */
-.msg.user .content { line-height: 1.5; }
+/* 1.55, between the inherited 1.6 and the 1.5 that felt cramped. Replies keep
+   the looser 1.6: long-form prose needs the air. */
+.msg.user .content { line-height: 1.55; }
 /* Replies: no card at all, just a comfortable reading measure. */
 .msg.assistant .body { max-width: 100%; }
 .msg.assistant .content { max-width: 74ch; }
 
 @media (max-width: 620px) {
-  .msg.user .body { max-width: 90%; padding: 6px 13px; }
+  .msg.user .body { max-width: 90%; padding: 9px 14px; }
   .msg.assistant .content { max-width: 100%; }
 }
 /* ====================== Landing: all-tools section ======================= */
