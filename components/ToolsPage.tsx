@@ -28,22 +28,31 @@ import {
 import { coerceRows, parseCsv as parseCsvRows, useSandbox } from "@/lib/sandbox";
 import { ColourTools as ColourTab, ImageDownloader, QrTools as QrTab, UrlTools as UrlTab } from "./ToolTabs";
 import { useDismiss } from "@/lib/useDismiss";
-import { TOOL_META, type ToolId } from "@/lib/toolMeta";
-import { TOOL_ICONS } from "./toolIcons";
 import LoginScreen from "./LoginScreen";
 
-/** The tab id, re-exported so existing references in this file keep working. */
-export type Tab = ToolId;
+/**
+ * The in-app panel's tab ids. Deliberately NOT ToolId: the panel groups seven
+ * categories, while lib/toolMeta.ts registers eleven individual tools. They are
+ * different id spaces and conflating them makes the panel navigate to pages that
+ * do not exist.
+ */
+export type Tab = "pdf" | "image" | "colour" | "qr" | "url" | "data" | "make";
 
 /**
  * The tool list, derived from the shared metadata plus the icon map rather than
  * restated. Two hand-maintained lists drift, and the symptom is a tool that
  * exists in the panel but has no page, or a page with no icon.
  */
-export const TABS: { id: Tab; label: string; blurb: string; icon: (p: { size?: number }) => ReactElement }[] = TOOL_META.map((t) => ({
-  ...t,
-  icon: TOOL_ICONS[t.id] as (p: { size?: number }) => ReactElement,
-}));
+/** The panel's tab bar. Its own list, keyed by the 7 Tab ids above. */
+export const TABS: { id: Tab; label: string; blurb: string; icon: (p: { size?: number }) => ReactElement }[] = [
+  { id: "pdf", label: "PDF", blurb: "Images to PDF, PDF to images, and any document to PDF.", icon: PdfIcon },
+  { id: "image", label: "Image", blurb: "Edit an image, or download one straight from a URL.", icon: ImageIcon },
+  { id: "colour", label: "Colours", blurb: "Convert colours, check WCAG contrast, and build tint and shade scales.", icon: TemplateIcon },
+  { id: "qr", label: "QR codes", blurb: "Real QR codes with error correction, exported as PNG or SVG.", icon: WrenchIcon },
+  { id: "url", label: "URL tools", blurb: "Break a URL into its parts, and build one from fields.", icon: SearchIcon },
+  { id: "data", label: "Data", blurb: "Encode, decode and format structured data.", icon: FileIcon },
+  { id: "make", label: "Generate", blurb: "Generate an image from a prompt.", icon: SearchIcon },
+];
 
 /* ============================== PDF tools =============================== */
 
@@ -58,7 +67,7 @@ const RESOLUTIONS: { scale: number; label: string; note: string; hint: string }[
   { scale: 4, label: "Print", note: "sharpest", hint: "288 dpi. Best quality, but the largest files and slowest." },
 ];
 
-type PdfDir = "imagesToPdf" | "toPdf" | "toImages";
+export type PdfDir = "imagesToPdf" | "toPdf" | "toImages";
 
 /** Pick several images, order them, and export them as one document. */
 function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
@@ -367,8 +376,9 @@ function ImagesToPdf({ notify }: { notify: (m: string) => void }) {
   );
 }
 
-export function PdfTools({ notify }: { notify: (m: string) => void }) {
-  const [dir, setDir] = useState<PdfDir>("imagesToPdf");
+export function PdfTools({ notify, initialDir }: { notify: (m: string) => void; initialDir?: PdfDir }) {
+  // A standalone /tools/<id> page opens on one specific job rather than the first.
+  const [dir, setDir] = useState<PdfDir>(initialDir ?? "imagesToPdf");
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<{ name: string; ok: boolean; msg: string }[]>([]);
   const [scale, setScale] = useState(2);
@@ -948,6 +958,8 @@ export interface GenProps {
   apiKey: string;
   baseUrl: string;
   signedIn: boolean;
+  /** Which job to open on. Set by the standalone /tools/<id> page. */
+  initialKind?: "doc" | "image";
   notify: (m: string) => void;
   /**
    * Sign-in, for the standalone page.
@@ -972,6 +984,7 @@ export function GenerateTools({
   apiKey,
   baseUrl,
   signedIn,
+  initialKind,
   notify,
   authAvailable,
   onOpenLogin,
@@ -982,7 +995,8 @@ export function GenerateTools({
   onSignUpEmail,
   onResetPassword,
 }: GenProps) {
-  const [kind, setKind] = useState<"doc" | "image">("doc");
+  // A standalone /tools/<id> page opens on one specific job rather than the first.
+  const [kind, setKind] = useState<"doc" | "image">(initialKind === "image" ? "image" : "doc");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");

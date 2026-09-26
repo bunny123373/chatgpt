@@ -6354,4 +6354,184 @@ a:focus-visible,
 }
 @media (max-width: 620px) {
   .toolpage-chip { padding: 6px 10px; font-size: 12.5px; }
+}/* ====================== Tool pages, second design ====================== */
+/* Eleven individual tools rather than seven category tabs, so the layout is a
+   rail plus a single tool. The rail is what makes that work: a row of chips
+   for eleven tools wraps into three ragged lines on a phone. */
+.tp2 {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: clip;
+}
+.tp2-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px clamp(14px, 4vw, 32px);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  /* Opaque: content scrolls underneath, and a translucent bar over scrolling
+     text is unreadable however good the blur. */
+  background: var(--bg);
+}
+.tp2-shell {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: clamp(18px, 3vw, 40px);
+  padding: clamp(20px, 3vw, 34px) clamp(14px, 4vw, 28px) clamp(48px, 8vw, 72px);
+  align-items: start;
+}
+/* ---------- rail ---------- */
+.tp2-rail {
+  position: sticky;
+  top: 74px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  padding-right: 4px;
+  /* Only show a scrollbar when it is actually needed, and keep it out of the
+     way on a trackpad. */
+  scrollbar-width: thin;
+}
+.tp2-rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tp2-rail-title {
+  margin: 0 0 5px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.tp2-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 14px;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.tp2-link:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.tp2-link.on {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.tp2-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* ---------- main ---------- */
+.tp2-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.tp2-head {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.tp2-group {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.tp2-title {
+  margin: 0;
+  font-size: clamp(25px, 4.4vw, 34px);
+  font-weight: 690;
+  letter-spacing: -0.032em;
+  line-height: 1.12;
+}
+.tp2-blurb {
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 60ch;
+}
+/* A card rather than bare content, so the tool reads as one object on the page
+   instead of floating in a column. */
+.tp2-card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+  padding: clamp(14px, 2.4vw, 22px);
+  min-width: 0;
+}
+.tp2-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 70ch;
+}
+
+/* ---------- narrow: the rail becomes a horizontal scroller ---------- */
+@media (max-width: 860px) {
+  .tp2-shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .tp2-rail {
+    position: static;
+    flex-direction: row;
+    gap: 6px;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    /* Bleed to the screen edges so it reads as a scroller rather than a strip
+       jammed against the content above it. */
+    margin-inline: calc(-1 * clamp(14px, 4vw, 28px));
+    padding-inline: clamp(14px, 4vw, 28px);
+    padding-bottom: 10px;
+    scrollbar-width: none;
+  }
+  .tp2-rail::-webkit-scrollbar {
+    display: none;
+  }
+  .tp2-rail-group {
+    flex-direction: row;
+    gap: 6px;
+  }
+  /* The group label is redundant once the groups are side by side, and it would
+     otherwise be the first thing scrolled off. */
+  .tp2-rail-title {
+    display: none;
+  }
+  .tp2-link {
+    white-space: nowrap;
+    border: 1px solid var(--border);
+  }
+  .tp2-link.on {
+    border-color: var(--accent);
+  }
 }

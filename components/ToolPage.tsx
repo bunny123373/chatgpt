@@ -3,39 +3,38 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { TOOL_META, type ToolMeta } from "@/lib/toolMeta";
+import { TOOL_GROUPS, TOOL_META, type ToolBody, type ToolMeta } from "@/lib/toolMeta";
 import { TOOL_ICONS } from "./toolIcons";
 import { ChatGPTLogo } from "./Icons";
 import { ColourTools, QrTools, UrlTools } from "./ToolTabs";
-import { DataTools, PdfTools } from "./ToolsPage";
-import GenerateStandalone from "./GenerateStandalone";
-import ImageToolsStandalone from "./ImageToolsStandalone";
+import { DataTools, GenerateTools, ImageTools, PdfTools } from "./ToolsPage";
+import { useAuth } from "@/lib/useAuth";
+import { DEFAULT_SETTINGS } from "@/lib/types";
 import { SITE_NAME } from "@/lib/site";
 
 /**
- * Shell for a single tool at /tools/<id>.
+ * A single tool, on its own page.
  *
- * Every tool gets its own URL rather than living behind the in-chat Tools panel.
- * A tool is a page, not a modal: it should be linkable, bookmarkable, shareable
- * and reachable from search, and reaching one should not drop you into a
- * conversation first. The panel in the app stays, because inside a chat the
- * tools are convenient, but nothing forces you through it.
+ * The old Tools panel grouped seven categories behind tabs, so getting to
+ * "PDF to images" meant opening "PDF" and clicking again, and nothing had a URL
+ * of its own. Every tool here is a real route: linkable, bookmarkable, in the
+ * sitemap, and findable in search.
  *
- * The tool body is chosen here rather than passed in. This was originally a
- * render prop -- children was a (notify) => ReactNode supplied by the server
- * page -- and that cannot work: a function cannot cross the server-to-client
- * boundary, and the build fails while prerendering with "Functions cannot be
- * passed directly to Client Components". Selecting the body on this side means
- * the server page passes only a plain serialisable object, and notify is just
- * an ordinary prop handed to a client component, which is allowed.
+ * The body is selected here rather than passed in from the server page. It was
+ * originally a render prop, children being a (notify) => ReactNode built by the
+ * server, and that cannot work: functions do not cross the server-to-client
+ * boundary, and prerendering fails with "Functions cannot be passed directly to
+ * Client Components". Selecting on this side makes notify an ordinary prop.
+ *
+ * Sign-in is read live through useAuth rather than hardcoded. GenerateTools
+ * refuses to create an image when signedIn is false, so a constant here made
+ * that tool's main function unreachable on its own page.
  */
 export default function ToolPage({ tool }: { tool: ToolMeta }) {
   const router = useRouter();
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Clear a pending hide on unmount. Without this, navigating away within the
-  // 2.6s window sets state on an unmounted component.
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
@@ -43,11 +42,6 @@ export default function ToolPage({ tool }: { tool: ToolMeta }) {
     [],
   );
 
-  /**
-   * Standalone pages have no app shell to host a toast, so this renders an
-   * inline one. The ref keeps the previous timer so a burst of messages
-   * replaces rather than stacks.
-   */
   const notify = (m: string) => {
     setToast(m);
     if (timer.current) clearTimeout(timer.current);
@@ -55,8 +49,8 @@ export default function ToolPage({ tool }: { tool: ToolMeta }) {
   };
 
   return (
-    <div className="toolpage">
-      <header className="toolpage-bar">
+    <div className="tp2">
+      <header className="tp2-bar">
         <Link href="/" className="land-brand" aria-label={`${SITE_NAME} home`}>
           <ChatGPTLogo size={20} />
           <span>{SITE_NAME}</span>
@@ -74,44 +68,54 @@ export default function ToolPage({ tool }: { tool: ToolMeta }) {
         </div>
       </header>
 
-      <main className="toolpage-main">
-        <div className="toolpage-head">
-          <h1 className="toolpage-title">{tool.label}</h1>
-          <p className="toolpage-blurb">{tool.blurb}</p>
-        </div>
-
-        {/* Every tool, so one is always a click away. `aria-current` marks the
-            page you are on instead of implying a click will do something. */}
-        <nav className="toolpage-nav" aria-label="Tools">
-          {TOOL_META.map((t) => {
-            const Icon = TOOL_ICONS[t.id];
-            const on = t.id === tool.id;
-            return (
-              <Link
-                key={t.id}
-                href={`/tools/${t.id}`}
-                className={`toolpage-chip${on ? " on" : ""}`}
-                aria-current={on ? "page" : undefined}
-                title={t.blurb}
-              >
-                <Icon size={15} />
-                <span>{t.label}</span>
-              </Link>
-            );
-          })}
+      <div className="tp2-shell">
+        {/*
+          A rail rather than a row of chips. There are eleven tools in five
+          groups now, and chips for all eleven wrap into three ragged lines on a
+          phone. Grouped, the rail is scannable and has room for each label.
+        */}
+        <nav className="tp2-rail" aria-label="Tools">
+          {TOOL_GROUPS.map((g) => (
+            <div key={g} className="tp2-rail-group">
+              <p className="tp2-rail-title">{g}</p>
+              {TOOL_META.filter((t) => t.group === g).map((t) => {
+                const Icon = TOOL_ICONS[t.id];
+                const on = t.id === tool.id;
+                return (
+                  <Link
+                    key={t.id}
+                    href={`/tools/${t.id}`}
+                    className={`tp2-link${on ? " on" : ""}`}
+                    aria-current={on ? "page" : undefined}
+                  >
+                    <Icon size={15} />
+                    <span>{t.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
-        <div className="toolpage-body">{body(tool.id, notify)}</div>
+        <main className="tp2-main">
+          <header className="tp2-head">
+            <p className="tp2-group">{tool.group}</p>
+            <h1 className="tp2-title">{tool.label}</h1>
+            <p className="tp2-blurb">{tool.blurb}</p>
+          </header>
 
-        <p className="toolpage-note">
-          This tool runs entirely in your browser. Nothing you enter is uploaded.
-        </p>
-      </main>
+          <div className="tp2-card">{renderBody(tool, notify)}</div>
+
+          <p className="tp2-note">
+            Runs entirely in your browser. Nothing you enter is uploaded, and nothing is stored on a server.
+          </p>
+        </main>
+      </div>
 
       {/*
-        Fixed rather than absolute so it does not scroll away under a long tool.
-        Kept mounted and toggled with opacity, because an element that is added
-        and removed cannot transition.
+        Kept mounted and toggled with opacity so it can transition, and
+        pointer-events:none because an always-mounted element is otherwise a
+        fixed box that swallows taps on whatever sits beneath it.
       */}
       <div className="toolpage-toast" role="status" aria-live="polite" style={{ opacity: toast ? 1 : 0 }}>
         {toast ?? ""}
@@ -120,13 +124,15 @@ export default function ToolPage({ tool }: { tool: ToolMeta }) {
   );
 }
 
-/** The tool body for an id. Total over ToolId, so a new tool fails to compile. */
-function body(id: ToolMeta["id"], notify: (m: string) => void) {
-  switch (id) {
+/** Which component, and which mode it opens in, for a given tool. */
+function renderBody(tool: ToolMeta, notify: (m: string) => void) {
+  switch (tool.body as ToolBody) {
     case "pdf":
-      return <PdfTools notify={notify} />;
+      // The variant is the whole point of splitting these: the page opens on
+      // the job it is named for, not on the first one in the tab.
+      return <PdfTools notify={notify} initialDir={tool.variant as never} />;
     case "image":
-      return <ImageToolsStandalone notify={notify} />;
+      return <ImageTools notify={notify} initialDir={tool.variant as "edit" | "download"} />;
     case "colour":
       return <ColourTools />;
     case "qr":
@@ -135,9 +141,58 @@ function body(id: ToolMeta["id"], notify: (m: string) => void) {
       return <UrlTools notify={notify} />;
     case "data":
       return <DataTools notify={notify} />;
-    case "make":
-      return <GenerateStandalone notify={notify} />;
+    case "generate":
+      return <GenerateTool notify={notify} kind={tool.variant === "image" ? "image" : "doc"} />;
     default:
       return null;
   }
+}
+
+/**
+ * Generation needs live auth and the saved credentials, which the plain
+ * GenerateTools cannot get for itself. Kept here so the page stays one
+ * component while the wiring stays in one place.
+ */
+function GenerateTool({ notify, kind }: { notify: (m: string) => void; kind: "doc" | "image" }) {
+  const { signedIn, authAvailable, actions } = useAuth();
+  const [creds, setCreds] = useState({
+    model: DEFAULT_SETTINGS.model,
+    apiKey: "",
+    baseUrl: DEFAULT_SETTINGS.baseUrl,
+  });
+  const [loginOpen, setLoginOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("chatgpt2.settings");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { model?: string; apiKey?: string; baseUrl?: string };
+      setCreds({
+        model: parsed.model || DEFAULT_SETTINGS.model,
+        apiKey: parsed.apiKey || "",
+        baseUrl: parsed.baseUrl || DEFAULT_SETTINGS.baseUrl,
+      });
+    } catch {
+      // The defaults already in state stand.
+    }
+  }, []);
+
+  return (
+    <GenerateTools
+      model={creds.model}
+      apiKey={creds.apiKey}
+      baseUrl={creds.baseUrl}
+      signedIn={signedIn}
+      initialKind={kind}
+      authAvailable={authAvailable}
+      onOpenLogin={authAvailable ? () => setLoginOpen(true) : undefined}
+      loginOpen={loginOpen}
+      onCloseLogin={() => setLoginOpen(false)}
+      onSignIn={actions.signIn}
+      onSignInEmail={actions.signInEmail}
+      onSignUpEmail={actions.signUpEmail}
+      onResetPassword={actions.resetPassword}
+      notify={notify}
+    />
+  );
 }

@@ -1,3 +1,5 @@
+import { TOOL_META } from "./toolMeta";
+
 /**
  * Site-wide constants.
  *
@@ -48,16 +50,14 @@ export const INDEXABLE_ROUTES: { path: string; changefreq: "daily" | "weekly" | 
   { path: "/", changefreq: "weekly", priority: 1 },
   { path: "/chat", changefreq: "daily", priority: 0.9 },
   { path: "/help", changefreq: "monthly", priority: 0.6 },
-  // The seven tools, each a real static page. Listed individually because a tool
-  // page is a destination someone can search for, not a variant of one page.
-  { path: "/tools/pdf", changefreq: "monthly", priority: 0.7 },
-  { path: "/tools/image", changefreq: "monthly", priority: 0.7 },
-  { path: "/tools/colour", changefreq: "monthly", priority: 0.7 },
-  { path: "/tools/qr", changefreq: "monthly", priority: 0.7 },
-  { path: "/tools/url", changefreq: "monthly", priority: 0.7 },
-  { path: "/tools/data", changefreq: "monthly", priority: 0.6 },
-  { path: "/tools/make", changefreq: "monthly", priority: 0.6 },
   { path: "/privacy", changefreq: "yearly", priority: 0.4 },
   { path: "/terms", changefreq: "yearly", priority: 0.4 },
   { path: "/contact", changefreq: "yearly", priority: 0.4 },
+  // Every tool, derived from the registry rather than restated, so a tool added
+  // there without a sitemap entry is impossible and one removed cannot linger.
+  ...TOOL_META.map((t) => ({
+    path: `/tools/${t.id}`,
+    changefreq: "monthly" as const,
+    priority: 0.7,
+  })),
 ];
