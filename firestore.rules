@@ -1,0 +1,40 @@
+rules_version = '2';
+
+/**
+ * Firestore security rules for Next AI chat sync.
+ *
+ * Deploy with:  firebase deploy --only firestore:rules
+ *
+ * The whole point of these rules is that a signed-in user can read and write
+ * their own conversations and nobody else's. Two things to get right:
+ *
+ *  1. The path is keyed by the caller's own uid, so a request for
+ *     users/<someone-else>/chats does not match the allow rule below.
+ *
+ *  2. There is no wildcard "read all, write all" anywhere. If these rules are
+ *     ever replaced with `allow read, write: if true`, every user's chats
+ *     become world-readable, and nothing in the client would reveal it.
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid}/chats/{chatId} {
+      // Signed in, and the path's uid is your uid.
+      //
+      // A wrong uid simply does not match this rule, so there is no negative
+      // case to get wrong: a request for another user's chat falls through to
+      // the deny below.
+      allow read, create, update, delete: if request.auth != null && request.auth.uid == uid;
+
+      // Defensive: the client's own code never writes these, so a document
+      // carrying them is either a mistake or someone probing. Reject rather
+      // than store it.
+      allow write: if request.resource.data.keys().hasOnly(['title', 'messages', 'createdAt', 'updatedAt', 'pinned']);
+    }
+
+    // Anything else in the database is not ours to expose.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

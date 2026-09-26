@@ -12,6 +12,12 @@ export interface FileRef {
   text?: string;
   /** Data URL for image attachments (sent to the model as vision input). */
   dataUrl?: string;
+  /**
+   * Set by sync when this file was left off the server copy because the chat
+   * exceeded the Firestore document limit. Name, type and size are kept so the
+   * message still reads on the other device; only the bytes are missing.
+   */
+  stripped?: boolean;
   /** Truncated page count for PDFs, when known. */
   pages?: number;
   /** Set when the file couldn't be read (too large, binary, etc.). */
@@ -194,6 +200,12 @@ export interface Settings {
   showUsage: boolean;
   /** Play a short tone when a message is sent and when a reply arrives. */
   sound: boolean;
+  /**
+   * Copy conversations to the account so they follow you between devices.
+   * Off by default, and off while signed out: this is the only setting that
+   * sends conversation content to a server, so it is never assumed.
+   */
+  sync: boolean;
   /** Display name shown in the app (overrides the provider name). */
   profileName: string;
   /** The user's real name — never shown in chat, only on their profile. */
@@ -281,6 +293,7 @@ export const DEFAULT_SETTINGS: Settings = {
   instructions: "",
   showUsage: false,
   sound: true,
+  sync: false,
   profileName: "",
   realName: "",
   avatar: "",

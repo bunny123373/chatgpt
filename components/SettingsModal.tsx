@@ -325,6 +325,27 @@ export default function SettingsModal({
                   />
                 </div>
 
+                {/* Sync is the only control here that sends anything to a
+                    server, so the copy says exactly what leaves the device and
+                    that it is off until turned on. */}
+                <div className="set-row">
+                  <span className="set-label">
+                    Sync conversations across devices
+                    <small>
+                      {user
+                        ? "Uploads your chats to your Firebase account so they appear on any device you sign in to. Off until you turn it on."
+                        : "Sign in first. Your chats are copied to your account and appear on any device you sign in to."}
+                    </small>
+                  </span>
+                  <button
+                    type="button"
+                    className={`toggle${settings.sync ? " on" : ""}`}
+                    aria-label="Toggle cross-device sync"
+                    aria-pressed={settings.sync}
+                    disabled={!user}
+                    onClick={() => set("sync", !settings.sync)}
+                  />
+                </div>
                 <div className="set-row">
                   <span className="set-label">
                     Streaming responses

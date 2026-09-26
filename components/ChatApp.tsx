@@ -8,6 +8,7 @@ import { printChat } from "@/lib/printChat";
 import { convertFileToPdf, convertFileToPdfBlob } from "@/lib/fileToPdf";
 import { buildTextPdf, downloadBlob, pdfFilename } from "@/lib/pdfWriter";
 import { playSound, unlockAudio } from "@/lib/sound";
+import { deleteRemoteChat, syncChats } from "@/lib/sync";
 import Backdrop from "./Backdrop";
 import Library from "./Library";
 import ToolsPage from "./ToolsPage";
@@ -186,7 +187,8 @@ export default function ChatApp({
 // without depending on a re-render having happened.
 const chatsRef = useRef<Chat[]>([]);
 chatsRef.current = chats;
-  const [projects, setProjects] = useState<Project[]>([]);
+
+ const [projects, setProjects] = useState<Project[]>([]);
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   // Canvas side panel document.
   const [canvasDoc, setCanvasDoc] = useState<CanvasDoc | null>(null);
@@ -601,6 +603,69 @@ chatsRef.current = chats;
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+
+/**
+ * Cross-device sync.
+ *
+ * Pull once per account when the toggle is on, then push on a debounce after
+ * changes settle. Both directions go through lib/sync, which owns the
+ * last-write-wins merge; this only decides when to call it.
+ *
+ * The push effect is keyed on the newest updatedAt rather than on the chats
+ * array, so a re-render that produces a new array with identical contents does
+ * not schedule a pointless round trip.
+ */
+const [syncNote, setSyncNote] = useState<string | null>(null);
+const syncWanted = settings.sync && Boolean(authUid);
+const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+useEffect(() => {
+  if (!syncWanted || !authUid) return;
+  let live = true;
+  (async () => {
+    const { chats: merged, outcome } = await syncChats(authUid, chatsRef.current, true);
+    if (!live) return;
+    if (outcome.status === "unavailable") {
+      setSyncNote("Sync is unavailable: Firestore is not enabled on this Firebase project.");
+      return;
+    }
+    if (outcome.status === "error") {
+      setSyncNote(`Sync failed: ${outcome.message}`);
+      return;
+    }
+    if (outcome.status === "merged") {
+      // Only write back when something actually changed, so an unchanged device
+      // does not rewrite its whole store on every pull.
+      if (outcome.pulled > 0 || merged.length !== chatsRef.current.length) {
+        setChats(merged);
+        saveChats(merged);
+      }
+      if (outcome.pulled > 0) {
+        setSyncNote(`Synced ${outcome.pulled} conversation${outcome.pulled === 1 ? "" : "s"} from another device.`);
+      } else if (outcome.trimmed.length) {
+        setSyncNote(
+          `${outcome.trimmed.length} conversation${outcome.trimmed.length === 1 ? "" : "s"} too large to sync with images: ${outcome.trimmed.join(", ")}. The text is saved; attached images are not.`,
+        );
+      }
+    }
+  })();
+  return () => {
+    live = false;
+  };
+  // Re-pull only when the account or the preference changes, not on every edit.
+}, [authUid, syncWanted]);
+
+const newestUpdate = chats.reduce((m, c) => Math.max(m, c.updatedAt), 0);
+useEffect(() => {
+  if (!syncWanted || !authUid) return;
+  if (pushTimer.current) clearTimeout(pushTimer.current);
+  pushTimer.current = setTimeout(() => {
+    syncChats(authUid, chatsRef.current, true).catch(() => undefined);
+  }, 2500);
+  return () => {
+    if (pushTimer.current) clearTimeout(pushTimer.current);
+  };
+}, [newestUpdate, syncWanted, authUid]);
   const [input, setInput] = useState("");
   const [attach, setAttach] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -891,6 +956,10 @@ chatsRef.current = chats;
       const next = chats.filter((c) => c.id !== id);
       setChats(next);
       setActiveId((cur) => (cur === id ? next[0]?.id ?? null : cur));
+      // Drop it from the server copy too, or the next sync would bring it straight
+      // back. Fire and forget: the local delete has already happened, and a failed
+      // remote delete is not worth interrupting anyone over.
+      if (syncWanted && authUid) void deleteRemoteChat(authUid, id);
       // ChatGPT deletes immediately and offers a short Undo instead of a confirm.
       notifyAction("Chat deleted", "Undo", () => {
         setChats((cur) => {
@@ -901,7 +970,7 @@ chatsRef.current = chats;
         });
       });
     },
-    [chats, notifyAction]
+    [chats, notifyAction, syncWanted, authUid]
   );
 
   const clearAll = useCallback(() => {
@@ -1885,6 +1954,17 @@ chatsRef.current = chats;
           </>
         ) : null}
 
+        {/* Sync feedback. Only rendered when there is something to say, and
+            dismissible, because a persistent banner about a feature the user did
+            not ask for is noise. */}
+        {syncNote ? (
+          <div className="sync-note" role="status" aria-live="polite">
+            <span>{syncNote}</span>
+            <button type="button" onClick={() => setSyncNote(null)} aria-label="Dismiss">
+              ×
+            </button>
+          </div>
+        ) : null}
         <div className="thread" ref={scrollRef}>
           {messages.length === 0 ? (
             <div className="welcome">

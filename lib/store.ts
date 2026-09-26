@@ -167,6 +167,9 @@ export function loadSettings(): Settings {
   if (typeof merged.instructions !== "string") merged.instructions = "";
   if (typeof merged.showUsage !== "boolean") merged.showUsage = false;
   if (typeof merged.sound !== "boolean") merged.sound = true;
+  // Default OFF, and never inferred. Syncing sends conversation content to a
+  // server, so an existing profile must opt in rather than acquire it by upgrade.
+  if (typeof merged.sync !== "boolean") merged.sync = false;
   return merged;
 }
 

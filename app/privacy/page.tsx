@@ -25,8 +25,14 @@ export default function PrivacyPage() {
       <Section title="The short version">
         <ul>
           <li>
-            <strong>Your chats are stored in your own browser</strong>, not on a server. There is no database of
-            conversations.
+            <strong>Your chats live in your own browser by default.</strong> There is no database of conversations,
+            and nothing is uploaded unless you turn on sync.
+          </li>
+          <li>
+            <strong>Sync is off until you switch it on.</strong> If you enable &quot;Sync conversations across
+            devices&quot; in Settings, your chats are copied to your Firebase account so they follow you between
+            devices. Deleting the conversation, or turning sync off and clearing site data, removes the local copy;
+            see below for what happens to the synced copy.
           </li>
           <li>
             <strong>There is no analytics, no advertising and no tracking</strong> of any kind. No third-party
@@ -64,8 +70,12 @@ export default function PrivacyPage() {
           <strong>Consequences worth understanding.</strong> Because this is browser storage:
         </p>
         <ul>
-          <li>Clearing your browser data, or using private browsing, deletes it. There is no server copy to restore from.</li>
-          <li>It is tied to the browser and the account, not to a sync service. It does not follow you to another device.</li>
+          <li>Clearing your browser data, or using private browsing, deletes it. If sync is on, the server copy is unaffected, so clearing local data does not remove the conversations from your account.</li>
+          <li>
+            It is tied to the browser and the account. It follows you to another device{" "}
+            <strong>only if you turn on sync in Settings</strong>. Sync is off by default, and existing profiles
+            stay off when upgraded rather than acquiring it silently.
+          </li>
           <li>
             It is readable by anything with access to your browser profile, including browser extensions. Treat a
             shared or compromised machine as compromised.
@@ -106,6 +116,9 @@ export default function PrivacyPage() {
               "The image URL you supply is fetched by our server so it can be saved directly. We do not keep the image.",
             ],
             [
+              "Turn on sync in Settings",
+              "Your conversations, including message text and any attached image bytes, are written to your account in Google Firebase Firestore so they can be restored on another device.",
+            ],            [
               "Use a tool",
               "Tools such as PDF, QR, colour and URL work entirely in your browser. Nothing is uploaded.",
             ],
@@ -139,8 +152,8 @@ export default function PrivacyPage() {
             ["Vercel", "Hosts this site and serves the API routes.", "Ordinary request metadata such as IP address, user agent and timing."],
             [
               "Google Firebase",
-              "Sign-in only, and only if the site is configured for accounts.",
-              "Your email address or Google/GitHub identity, if you choose to sign in. No conversation data.",
+              "Sign-in, and cloud storage for synced conversations.",
+              "Your email address or Google/GitHub identity if you sign in, and your conversations if you turn on sync. Firebase security rules restrict each user to their own path."
             ],
             [
               "Google or GitHub",
@@ -168,8 +181,14 @@ export default function PrivacyPage() {
           <li>Delete a single chat with its delete button, or clear everything from Settings.</li>
           <li>Sign out, then clear this site&apos;s data in your browser settings. That removes all local keys.</li>
           <li>
-            Because nothing is stored on our servers, there is nothing for us to delete afterwards. That is the
-            intended behaviour, and also its main limitation.
+            With sync off, nothing is stored on our servers, so there is nothing further to delete.
+          </li>
+          <li>
+            With sync on, your conversations are stored under your account in Google Firebase. Deleting a
+            conversation removes it from the server as well, and the same applies to &quot;Erase all
+            conversations&quot;. If you turn sync off, previously synced conversations are <strong>not</strong>{" "}
+            automatically removed from the server; to delete them, delete each conversation while sync is still on,
+            or ask and we will remove the account data.
           </li>
         </ul>
       </Section>

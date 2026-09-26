@@ -1,4 +1,5 @@
 import type { Auth } from "firebase/auth";
+import type { Firestore } from "firebase/firestore";
 
 /**
  * Firebase Auth bootstrap.
@@ -44,4 +45,36 @@ export function getFirebaseAuth(): Promise<Auth> {
     })();
   }
   return authPromise;
+}
+
+let dbPromise: Promise<Firestore> | null = null;
+
+/**
+ * The Firestore instance, for cross-device chat sync.
+ *
+ * Imported dynamically for the same reason as auth: a visitor who never signs in
+ * should not download the Firestore bundle. It also rejects when Firestore has
+ * not been created in the Firebase console yet, which is the normal state of a
+ * brand-new project, so the caller has to treat a failure as "sync unavailable"
+ * rather than as an error worth interrupting anyone over.
+ */
+export function getFirestoreDb(): Promise<Firestore> {
+  if (!dbPromise) {
+    dbPromise = (async () => {
+      const cfg = getFirebaseConfig();
+      if (!cfg) throw new Error("Firebase is not configured");
+      const [{ getApps, getApp, initializeApp }, { getFirestore }] = await Promise.all([
+        import("firebase/app"),
+        import("firebase/firestore"),
+      ]);
+      const app = getApps().length ? getApp() : initializeApp(cfg);
+      return getFirestore(app);
+    })().catch((e: unknown) => {
+      // Deliberately not caching the rejection: the user may create Firestore
+      // and reload, and a cached rejection would keep sync dead until restart.
+      dbPromise = null;
+      throw e;
+    });
+  }
+  return dbPromise;
 }
