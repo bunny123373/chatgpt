@@ -285,7 +285,9 @@ chatsRef.current = chats;
       title: active.title || "Conversation",
       who: (r) => (r === "user" ? settings.nickname.trim() || "You" : "Next AI"),
       messages: active.messages.map((m) => ({ role: m.role, content: m.content })),
-      model: active.model ?? settings.model,
+      // Friendly name only: the printout is shareable, and the raw id names
+      // the provider.
+      model: modelName(active.model ?? settings.model),
     });
     if (!ok) notify("Allow pop-ups to export as PDF");
   }
@@ -304,7 +306,9 @@ chatsRef.current = chats;
     if (!sections.length) return notify("Nothing to export yet");
     const blob = buildTextPdf({
       title: active.title || "Conversation",
-      subtitle: `${active.messages.length} message${active.messages.length === 1 ? "" : "s"} - ${active.model ?? settings.model}`,
+      // modelName, not the raw id: the id names the provider, and this ends up
+      // in a file the user can share.
+      subtitle: `${active.messages.length} message${active.messages.length === 1 ? "" : "s"} - ${modelName(active.model ?? settings.model)}`,
       sections,
     });
     downloadBlob(blob, pdfFilename(active.title || "conversation"));
@@ -1228,7 +1232,8 @@ chatsRef.current = chats;
       const json = JSON.stringify({
         v: 1,
         title: active.title,
-        model: active.model,
+        // No model id: a share link is public and trivially decodable, and
+        // the id names the provider. The decoder treats it as optional.
         messages: active.messages.map((m) => ({
           role: m.role,
           content: m.content,
@@ -1897,7 +1902,7 @@ chatsRef.current = chats;
                   msg={m}
                   streaming={streamId === m.id}
                   nickname={settings.nickname}
-                  model={active?.model ?? settings.model}
+                  model={modelName(active?.model ?? settings.model)}
                   onCopy={copy}
                   onEdit={m.role === "user" ? (text) => active && editResend(active.id, m.id, text) : undefined}
                   onDelete={() => active && deleteMessage(active.id, m.id)}

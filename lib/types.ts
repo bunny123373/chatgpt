@@ -288,8 +288,16 @@ export const DEFAULT_SETTINGS: Settings = {
   nickname: "You",
 };
 
+/**
+ * A human label for a model id.
+ *
+ * Falls back to a generic "Custom model" rather than echoing the id, because
+ * the id names the provider and the exact model -- a custom id like
+ * "qwen/qwen3.5-flash:free" should not appear in the UI or in exported files.
+ * The id is still editable in Settings, where you need to see it to change it.
+ */
 export function modelName(id: string): string {
-  return MODELS.find((m) => m.id === id)?.name ?? id;
+  return MODELS.find((m) => m.id === id)?.name ?? "Custom model";
 }
 
 /** Rough USD per 1M tokens, used when the provider doesn't report usage. */

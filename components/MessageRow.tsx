@@ -252,7 +252,9 @@ function MessageRow({
                 <p className="research-note">Based on {msg.researchSources} web sources</p>
               ) : null}
               {!isUser && !busy && !empty && model ? (
-                <p className="model-tag" title={`This reply was generated with ${model}`}>
+                /* Friendly name only. The raw id names the provider, so it is
+                   never rendered, and never in the tooltip either. */
+                <p className="model-tag" title={`Generated with ${model}`}>
                   via {model}
                 </p>
               ) : null}
