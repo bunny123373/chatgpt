@@ -68,6 +68,17 @@ const TABS: { id: Tab; label: string; icon: (p: { size?: number }) => ReactEleme
 
 /* ============================== PDF tools =============================== */
 
+/**
+ * Named resolutions. A bare slider gave no sense of what each step cost or
+ * produced, and is awkward to hit on a phone.
+ */
+const RESOLUTIONS: { scale: number; label: string; note: string; hint: string }[] = [
+  { scale: 1, label: "Draft", note: "smallest", hint: "72 dpi. Good for reading on screen, and the files stay small." },
+  { scale: 2, label: "Standard", note: "balanced", hint: "144 dpi. Sharp enough for most documents and slides." },
+  { scale: 3, label: "High", note: "detailed", hint: "216 dpi. Keeps fine print and diagrams legible." },
+  { scale: 4, label: "Print", note: "sharpest", hint: "288 dpi. Best quality, but the largest files and slowest." },
+];
+
 type PdfDir = "imagesToPdf" | "toPdf" | "toImages";
 
 /** Pick several images, order them, and export them as one document. */
@@ -494,8 +505,26 @@ function PdfTools({ notify }: { notify: (m: string) => void }) {
             }}
           />
           <div className="tp-field">
-            <label>Resolution · {scale}× ({scale * 72} dpi)</label>
-            <input type="range" min={1} max={4} step={1} value={scale} onChange={(e) => setScale(Number(e.target.value))} />
+            <label>Page resolution</label>
+            <div className="tp-res" role="radiogroup" aria-label="Page resolution">
+              {RESOLUTIONS.map((r) => (
+                <button
+                  key={r.scale}
+                  type="button"
+                  role="radio"
+                  aria-checked={scale === r.scale}
+                  className={`tp-res-tile${scale === r.scale ? " on" : ""}`}
+                  onClick={() => setScale(r.scale)}
+                >
+                  <b>{r.label}</b>
+                  <small>
+                    {r.scale}× · {r.scale * 72} dpi
+                  </small>
+                  <span className="tp-res-note">{r.note}</span>
+                </button>
+              ))}
+            </div>
+            <p className="tp-dim">{RESOLUTIONS.find((r) => r.scale === scale)?.hint}</p>
           </div>
           <div className="tp-drop" onClick={() => toImgRef.current?.click()} role="button" tabIndex={0}>
             <ImageIcon size={26} />
