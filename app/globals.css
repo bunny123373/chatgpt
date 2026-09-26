@@ -102,6 +102,15 @@ select {
 }
 a {
   color: var(--accent);
+  /* Anchors default to underlined, which put a line under every nav and tool
+     link. Those are buttons and list rows, not body-copy references. */
+  text-decoration: none;
+}
+/* Links inside a rendered reply ARE references, so those keep the underline. */
+.msg .content a,
+.data-preview a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .app {
@@ -5350,3 +5359,75 @@ html[data-theme="dark"] .msg.user .body::before {
 .land-foot > * {
   min-width: 0;
 }
+/* ===== Landing: all-tools section, borderless with icons ============== */
+/* No rules, no dividers, no card outlines. Depth comes from a tinted
+   surface and a soft shadow instead, and each group is identified by a
+   coloured icon rather than a line. */
+.land-tools { border-top: none; }
+.land-tool-group {
+  position: relative;
+  border: none;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--panel2) 92%, var(--tone, var(--accent))),
+    var(--panel2));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.07), 0 12px 30px -22px rgba(0, 0, 0, 0.34);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.land-tool-group:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 3px 8px -3px rgba(0, 0, 0, 0.14), 0 22px 46px -26px rgba(0, 0, 0, 0.42);
+}
+.land-tool-group::before {
+  /* A short colour bar, not a full-width rule. */
+  content: "";
+  position: absolute;
+  inset: 18px auto auto 18px;
+  width: 26px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--tone, var(--accent));
+}
+.land-tool-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-bottom: 12px;
+}
+.land-tool-mark {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  margin-top: 2px;
+  border-radius: 11px;
+  color: var(--tone, var(--accent));
+  background: color-mix(in srgb, var(--tone, var(--accent)) 16%, transparent);
+  transition: transform 0.16s ease;
+}
+.land-tool-group:hover .land-tool-mark { transform: scale(1.07); }
+.land-tool-head > div { min-width: 0; }
+.land-tool-group h3 { margin: 0 0 2px; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.land-tool-group h3::before { content: none; }
+
+.land-tool-link {
+  border-radius: 10px;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.land-tool-link:hover {
+  background: color-mix(in srgb, var(--tone, var(--accent)) 14%, transparent);
+  color: var(--text);
+}
+.land-tool-link:hover .land-tool-arrow {
+  opacity: 1;
+  color: var(--tone, var(--accent));
+  transform: translateX(0);
+}
+
+/* Per-group colours. */
+.land-tool-group.tone-violet { --tone: #8b7bf7; }
+.land-tool-group.tone-teal   { --tone: #2bb8a6; }
+.land-tool-group.tone-amber  { --tone: #d9932b; }
+.land-tool-group.tone-rose   { --tone: #e2688a; }
+.land-tool-group.tone-green  { --tone: #3aa96b; }
+.land-tool-group.tone-accent { --tone: var(--accent); }

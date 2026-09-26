@@ -1,10 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MODELS } from "@/lib/types";
-import { ChatGPTLogo, ArrowIcon, SparkIcon } from "./Icons";
+import {
+  ArrowIcon,
+  CanvasIcon,
+  ChatGPTLogo,
+  ImageIcon,
+  LibraryIcon,
+  PdfIcon,
+  ResearchIcon,
+  SparkIcon,
+  TemplateIcon,
+  WrenchIcon,
+} from "./Icons";
 
 /**
  * Landing page.
@@ -58,6 +69,8 @@ interface ToolItem {
 interface ToolGroup {
   title: string;
   blurb: string;
+  icon: (p: { size?: number }) => ReactElement;
+  tone: string;
   items: ToolItem[];
 }
 
@@ -66,6 +79,8 @@ const TOOL_GROUPS: ToolGroup[] = [
   {
     title: "Chat",
     blurb: "Everything about keeping track of a conversation.",
+    icon: TemplateIcon,
+    tone: "violet",
     items: [
       { label: "Projects", href: "/chat?settings=projects" },
       { label: "Custom instructions", href: "/chat?settings=general" },
@@ -80,6 +95,8 @@ const TOOL_GROUPS: ToolGroup[] = [
   {
     title: "Images",
     blurb: "Make them, fetch them, shrink them, change their format.",
+    icon: ImageIcon,
+    tone: "teal",
     items: [
       { label: "Create an image", href: "/chat?img=1" },
       { label: "Download from a URL", href: "/chat?tools=image&dir=download" },
@@ -91,6 +108,8 @@ const TOOL_GROUPS: ToolGroup[] = [
   {
     title: "Documents",
     blurb: "Real PDF files, downloaded straight to your device.",
+    icon: PdfIcon,
+    tone: "amber",
     items: [
       { label: "Anything to PDF", href: "/chat?tools=pdf" },
       { label: "Images to one PDF", href: "/chat?tools=pdf" },
@@ -102,6 +121,8 @@ const TOOL_GROUPS: ToolGroup[] = [
   {
     title: "Data",
     blurb: "Run code on your own data, with no upload.",
+    icon: CanvasIcon,
+    tone: "rose",
     items: [
       { label: "CSV analysis sandbox", href: "/chat?tools=data" },
       { label: "Canvas", href: "/chat" },
@@ -111,6 +132,8 @@ const TOOL_GROUPS: ToolGroup[] = [
   {
     title: "Utilities",
     blurb: "Small tools that need no account and no network.",
+    icon: WrenchIcon,
+    tone: "green",
     items: [
       { label: "Colour and contrast check", href: "/chat?tools=colour" },
       { label: "QR code generator", href: "/chat?tools=qr" },
@@ -120,6 +143,8 @@ const TOOL_GROUPS: ToolGroup[] = [
   {
     title: "Research",
     blurb: "Go and look things up properly.",
+    icon: ResearchIcon,
+    tone: "accent",
     items: [
       { label: "Deep Research", href: "/chat" },
       { label: "Web search", href: "/chat" },
@@ -321,24 +346,34 @@ export default function Landing() {
         </header>
 
         <div className="land-tool-grid">
-          {TOOL_GROUPS.map((g) => (
-            <article key={g.title} className="land-tool-group">
-              <h3>{g.title}</h3>
-              <p className="land-tool-blurb">{g.blurb}</p>
-              <ul>
-                {g.items.map((item) => (
-                  <li key={item.label}>
-                    <Link href={item.href} className="land-tool-link">
-                      <span>{item.label}</span>
-                      <span className="land-tool-arrow" aria-hidden="true">
-                        →
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </article>
-          ))}
+          {TOOL_GROUPS.map((g) => {
+            const Icon = g.icon;
+            return (
+              <article key={g.title} className={`land-tool-group tone-${g.tone}`}>
+                <header className="land-tool-head">
+                  <span className="land-tool-mark" aria-hidden="true">
+                    <Icon size={17} />
+                  </span>
+                  <div>
+                    <h3>{g.title}</h3>
+                    <p className="land-tool-blurb">{g.blurb}</p>
+                  </div>
+                </header>
+                <ul>
+                  {g.items.map((item) => (
+                    <li key={item.label}>
+                      <Link href={item.href} className="land-tool-link">
+                        <span>{item.label}</span>
+                        <span className="land-tool-arrow" aria-hidden="true">
+                          →
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            );
+          })}
         </div>
       </section>
 
