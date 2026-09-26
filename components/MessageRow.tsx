@@ -404,7 +404,7 @@ function MessageRow({
   );
 
   return (
-    <div className={`msg ${isUser ? "user" : "assistant"}${msg.pinned ? " pinned" : ""}`}>
+    <div className={`msg msg-${isUser ? "user" : "assistant"}${isUser ? " msg-sent" : ""}${busy ? " msg-streaming" : ""}${msg.pinned ? " pinned" : ""}`}>
       {isUser ? (
         <>
           {body}

@@ -166,6 +166,7 @@ export function loadSettings(): Settings {
   if (merged.mode !== "quick" && merged.mode !== "thinking" && merged.mode !== "auto") merged.mode = "auto";
   if (typeof merged.instructions !== "string") merged.instructions = "";
   if (typeof merged.showUsage !== "boolean") merged.showUsage = false;
+  if (typeof merged.sound !== "boolean") merged.sound = true;
   return merged;
 }
 

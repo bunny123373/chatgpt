@@ -1,5 +1,6 @@
 "use client";
 import { useDismiss } from "@/lib/useDismiss";
+import { playSound, unlockAudio } from "@/lib/sound";
 import { useEffect, useRef, useState } from "react";
 import { BUBBLE_COLORS, DEFAULT_SETTINGS, MODELS, type AuthUser, type Project, type Settings } from "@/lib/types";
 import { BackIcon, TrashIcon } from "./Icons";
@@ -298,6 +299,28 @@ export default function SettingsModal({
                     aria-label="Toggle token and cost display"
                     aria-pressed={settings.showUsage}
                     onClick={() => set("showUsage", !settings.showUsage)}
+                  />
+                </div>
+
+                <div className="set-row">
+                  <span className="set-label">
+                    Message sounds
+                    <small>A short tone when you send a message and when a reply arrives.</small>
+                  </span>
+                  <button
+                    type="button"
+                    className={`toggle${settings.sound ? " on" : ""}`}
+                    aria-label="Toggle message sounds"
+                    aria-pressed={settings.sound}
+                    onClick={() => {
+                      set("sound", !settings.sound);
+                      // Preview it straight away, and unlock the audio context
+                      // from this click, which is what browsers require.
+                      if (!settings.sound) {
+                        unlockAudio();
+                        playSound("send", true);
+                      }
+                    }}
                   />
                 </div>
 

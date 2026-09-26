@@ -5557,3 +5557,44 @@ a:focus-visible,
   }
   .gen-squircle .gen-beam { opacity: 0.35; }
 }
+/* ================= Chat message motion ================================== */
+/* The old rule animated every message identically with a plain fade. Split it
+   by role and by state so a sent message, an arriving reply and a streaming
+   reply each move in a way that says which one it is. */
+.msg { animation: none; }
+
+@keyframes msg-send-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  60%  { opacity: 1; }
+  to { opacity: 1; transform: none; }
+}
+@keyframes msg-reply-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+/* The card of a just-sent message settles after it lands. */
+@keyframes msg-card-settle {
+  from { transform: scale(0.96); }
+  to { transform: none; }
+}
+
+.msg.msg-sent { animation: msg-send-in var(--an-base) var(--an-ease-out) both; }
+/* The user bubble itself settles a beat after the row lands. */
+.msg.msg-sent .body { animation: msg-card-settle var(--an-slow) var(--an-ease-out) both; }
+.msg.msg-assistant { animation: msg-reply-in var(--an-base) var(--an-ease-out) both; }
+
+/* While tokens are streaming in, keep the row from re-animating on every
+   state update. The caret is what signals activity, not the box. */
+.msg.msg-streaming { animation: none; opacity: 1; }
+
+
+
+/* Stagger the very first few messages so a restored conversation settles in
+   rather than appearing all at once. */
+.thread-inner > .msg:nth-child(1) { animation-delay: 0ms; }
+.thread-inner > .msg:nth-child(2) { animation-delay: 40ms; }
+.thread-inner > .msg:nth-child(3) { animation-delay: 80ms; }
+.thread-inner > .msg:nth-child(n + 4) { animation-delay: 110ms; }
+@media (prefers-reduced-motion: reduce) {
+  .thread-inner > .msg { animation-delay: 0ms !important; }
+}

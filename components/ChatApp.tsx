@@ -7,6 +7,7 @@ import { useSandbox, parseCsv, coerceRows } from "@/lib/sandbox";
 import { printChat } from "@/lib/printChat";
 import { convertFileToPdf, convertFileToPdfBlob } from "@/lib/fileToPdf";
 import { buildTextPdf, downloadBlob, pdfFilename } from "@/lib/pdfWriter";
+import { playSound, unlockAudio } from "@/lib/sound";
 import Library from "./Library";
 import ToolsPage from "./ToolsPage";
 import MessageRow from "./MessageRow";
@@ -619,6 +620,26 @@ chatsRef.current = chats;
   };
 
   /**
+   * Browsers keep the audio context suspended until the user interacts with
+   * the page. Do that on the first pointer or key event so the very first
+   * message sound is not swallowed.
+   */
+  useEffect(() => {
+    if (!settings.sound) return;
+    const unlock = () => {
+      unlockAudio();
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, [settings.sound]);
+
+  /**
    * Deep links from the landing page, e.g. /chat?tools=colour or
    * /chat?tools=image&dir=download. Read from location.search rather than
    * useSearchParams so no Suspense boundary is needed.
@@ -1112,6 +1133,8 @@ chatsRef.current = chats;
         setStreamId(null);
         abortRef.current = null;
         if (stickRef.current) scrollToBottom(true);
+        // A tone when the reply lands, or when it failed.
+        if (settings.sound && !stopped) playSound(errored ? "error" : "receive", true);
       }
     },
     [chats, patchChat, projects, scrollToBottom, settings]
@@ -1547,6 +1570,9 @@ chatsRef.current = chats;
       setInput("");
       setAttach(null);
       setPendingFiles([]);
+      // The click that sent is a user gesture, so unlock the audio here and
+      // play immediately rather than waiting for a reply.
+      if (settings.sound) playSound("send", true);
       const hadImage = Boolean(userMsg.image) || Boolean(docs?.some((f) => f.dataUrl));
       void runStream(id, history).then(() => {
         if (!hadImage) return;

@@ -192,6 +192,8 @@ export interface Settings {
   instructions: string;
   /** Show the token/cost readout under assistant replies. */
   showUsage: boolean;
+  /** Play a short tone when a message is sent and when a reply arrives. */
+  sound: boolean;
   /** Display name shown in the app (overrides the provider name). */
   profileName: string;
   /** The user's real name — never shown in chat, only on their profile. */
@@ -278,6 +280,7 @@ export const DEFAULT_SETTINGS: Settings = {
   mode: "auto",
   instructions: "",
   showUsage: false,
+  sound: true,
   profileName: "",
   realName: "",
   avatar: "",
