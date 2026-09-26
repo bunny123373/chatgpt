@@ -491,6 +491,21 @@ export default function ChatApp({
     }
 
     const userMsg: Msg = { id: uid(), role: "user", content: question };
+    // A URL pasted into the draft that turned out to be an image: attach it so
+    // the model can see it, and keep the reference so the message can show
+    // download and convert controls.
+    if (linkedImage) {
+      // Prefer the inlined data URL: a vision endpoint has to be able to reach
+      // the remote URL itself, and usually cannot. Fall back to the URL when
+      // the image was too big to inline.
+      userMsg.image = linkedImage.dataUrl || linkedImage.url;
+      userMsg.imageRef = {
+        url: linkedImage.url,
+        filename: linkedImage.filename,
+        type: linkedImage.type,
+        dataUrl: linkedImage.dataUrl,
+      };
+    }
     const replyId = uid();
     const ac = new AbortController();
     abortRef.current = ac;
@@ -499,6 +514,7 @@ export default function ChatApp({
     setInput("");
     setResearchOn(false);
     setPendingFiles([]);
+    setLinkedImage(null);
     stickRef.current = true;
 
     patchChat(chatId, (c) => ({
@@ -612,6 +628,9 @@ export default function ChatApp({
     setToolsImageDir(imageDir);
     setToolsOpen(true);
   };
+
+  // An image URL found in the composer draft, attached to the next message.
+  const [linkedImage, setLinkedImage] = useState<{ url: string; filename: string; type: string; dataUrl?: string } | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -1850,6 +1869,7 @@ export default function ChatApp({
           onFilesAttach={(picked) => void attachFiles(picked)}
       onConvertPdf={(file) => void convertToPdf(file)}
       onOpenImageDownloader={() => openTools("image", "download")}
+      onImageUrl={setLinkedImage}
           filesBusy={filesBusy}
           mode={settings.mode}
           onModeChange={(m) => setSettings((s) => ({ ...s, mode: m }))}

@@ -18,6 +18,8 @@ import {
   DownloadIcon,
 } from "./Icons";
 import { IMAGE_RATIOS, RATIO_OUTPUT, type FileRef, type ImageRatio, type ResponseMode } from "@/lib/types";
+import { extractUrls, looksLikeImageUrl, probeImageUrl } from "@/lib/imageDownloader";
+import ImageCard from "./ImageCard";
 
 interface Props {
   value: string;
@@ -37,6 +39,11 @@ interface Props {
   onConvertPdf: (file: File) => void;
   /** Open the Tools page on the image downloader. */
   onOpenImageDownloader: () => void;
+  /**
+   * Reports an image URL found in the draft so the parent can attach it to the
+   * message it is about to send. Called with null once the URL goes away.
+   */
+  onImageUrl: (info: { url: string; filename: string; type: string; dataUrl?: string } | null) => void;
   /** True while documents are being parsed. */
   filesBusy: boolean;
   searching: boolean;
@@ -82,6 +89,7 @@ export default function Composer({
   filesBusy,
   onConvertPdf,
   onOpenImageDownloader,
+  onImageUrl,
   searching,
   onToggleSearch,
   tools,
@@ -113,6 +121,43 @@ export default function Composer({
   const [tplTitle, setTplTitle] = useState("");
 
   // Escape closes whichever composer popover is open.
+  // An image URL pasted into the draft is detected so it can be attached to the
+  // message and shown with download/convert controls. The extension is checked
+  // first, which costs nothing, so an ordinary article link never triggers a
+  // download; only an inconclusive path falls through to a probe.
+  const [linkedImage, setLinkedImage] = useState<{ url: string; filename: string; type: string; dataUrl?: string } | null>(null);
+  const linkedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const urls = extractUrls(value);
+    const candidate = urls.find((u) => looksLikeImageUrl(u)) ?? null;
+    if (!candidate) {
+      if (linkedRef.current) {
+        linkedRef.current = null;
+        setLinkedImage(null);
+        onImageUrl(null);
+      }
+      return;
+    }
+    if (candidate === linkedRef.current) return;
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const res = await probeImageUrl(candidate);
+      if (cancelled) return;
+      if (res && res.ok) {
+        linkedRef.current = candidate;
+        const info = { url: candidate, filename: res.filename, type: res.type, dataUrl: res.dataUrl };
+        setLinkedImage(info);
+        onImageUrl(info);
+      }
+    }, 600);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [value, onImageUrl]);
+
   useEffect(() => {
     if (!toolsOpen && !tplOpen && !ratioOpen && !modeOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -330,6 +375,25 @@ export default function Composer({
             >
               <CloseIcon />
             </button>
+          </div>
+        ) : null}
+
+        {linkedImage ? (
+          <div className="linked-img">
+            <ImageCard
+              src={linkedImage.url}
+              dataUrl={linkedImage.dataUrl}
+              filename={linkedImage.filename}
+              type={linkedImage.type}
+              compact
+              onRemove={() => {
+                linkedRef.current = null;
+                setLinkedImage(null);
+                onImageUrl(null);
+                onChange(value.split(linkedImage.url).join("").trim());
+              }}
+            />
+            <p className="tp-dim">This image will be sent with your message.</p>
           </div>
         ) : null}
 

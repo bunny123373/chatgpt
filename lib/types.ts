@@ -33,6 +33,20 @@ export interface Msg {
   content: string;
   /** Optional image attached to a user message (data URL). */
   image?: string;
+  /**
+   * Set when `image` came from a URL the user pasted, rather than a file they
+   * picked. Drives the inline download/convert card on the message.
+   */
+  imageRef?: {
+    url: string;
+    filename: string;
+    type: string;
+    bytes?: number;
+    width?: number;
+    height?: number;
+    /** Inlined copy, when the image was small enough. Sent to the model. */
+    dataUrl?: string;
+  };
   /** URL of an AI-generated image shown with an assistant message. */
   generatedImage?: string;
   /** True while an image is still being generated (placeholder message). */

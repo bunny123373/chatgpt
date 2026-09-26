@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useMemo, useState } from "react";
 import { renderMarkdown } from "@/lib/markdown";
+import ImageCard from "./ImageCard";
 import {
   ChatGPTLogo,
   CopyIcon,
@@ -164,7 +165,15 @@ function MessageRow({
         <div className="err">{msg.content}</div>
       ) : isUser ? (
         <div className="content">
-          {msg.image ? (
+          {msg.imageRef ? (
+            /* A URL pasted into the chat: full card with download and convert. */
+            <ImageCard
+              src={msg.imageRef.url}
+              dataUrl={msg.imageRef.dataUrl}
+              filename={msg.imageRef.filename}
+              type={msg.imageRef.type}
+            />
+          ) : msg.image ? (
             <div className="attach-img">
               <img src={msg.image} alt="Attached" />
             </div>

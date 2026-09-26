@@ -22,6 +22,12 @@ export interface FetchedImage {
   filename: string;
   width: number;
   height: number;
+  /**
+   * Data URL, present only for images up to MAX_INLINE. Sent to the model in
+   * preference to the remote URL, because a vision endpoint has to be able to
+   * reach that URL itself and often cannot.
+   */
+  dataUrl?: string;
 }
 
 export interface FetchError {
@@ -147,7 +153,33 @@ export async function fetchImage(
 
   const { width, height } = await readSize(blob);
 
-  return { ok: true, blob, url: URL.createObjectURL(blob), type, bytes: blob.size, filename, width, height };
+  return {
+    ok: true,
+    blob,
+    url: URL.createObjectURL(blob),
+    type,
+    bytes: blob.size,
+    filename,
+    width,
+    height,
+    /** Only set when the image is small enough to inline as a data URL. */
+    dataUrl: blob.size <= MAX_INLINE ? await blobToDataUrl(blob) : undefined,
+  };
+}
+
+/**
+ * Above this, inlining as a data URL bloats the request past what most vision
+ * endpoints accept, so the model gets the URL instead.
+ */
+export const MAX_INLINE = 4 * 1024 * 1024;
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result ?? ""));
+    fr.onerror = () => reject(new Error("Could not read the image."));
+    fr.readAsDataURL(blob);
+  });
 }
 
 /** Release the preview object URL when the image is discarded. */
@@ -171,4 +203,69 @@ export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+/* ------------------- detection inside chat text -------------------------- */
+
+/** Every format the browser can decode and hand back to a canvas. */
+export const IMAGE_EXTENSIONS = [
+  "png", "jpg", "jpeg", "webp", "gif", "avif", "svg", "bmp", "ico", "tif", "tiff", "apng", "jfif",
+] as const;
+
+const URL_RE = /\bhttps?:\/\/[^\s<>"'`)\]]+/gi;
+
+/** Pull every http(s) URL out of a block of text, in order, without duplicates. */
+export function extractUrls(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(URL_RE)) {
+    // Trailing punctuation is almost never part of the URL.
+    const cleaned = m[0].replace(/[.,;:!?]+$/, "");
+    if (cleaned && !out.includes(cleaned)) out.push(cleaned);
+  }
+  return out;
+}
+
+/** True when the URL's path looks like an image, so no network call is needed. */
+export function looksLikeImageUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const last = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() ?? "").toLowerCase();
+    const dot = last.lastIndexOf(".");
+    if (dot < 0) return false;
+    return (IMAGE_EXTENSIONS as readonly string[]).includes(last.slice(dot + 1));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Decide whether a pasted URL is an image without downloading it.
+ *
+ * The extension is checked first because that costs nothing; only when the
+ * path is inconclusive does this call the proxy, so typing an ordinary link
+ * like https://news.site/article never triggers a download.
+ */
+export async function probeImageUrl(
+  url: string,
+  opts: { probeAmbiguous?: boolean } = {}
+): Promise<FetchedImage | FetchError | null> {
+  if (looksLikeImageUrl(url)) return fetchImage(url);
+  if (opts.probeAmbiguous === false) return null;
+  // Ambiguous path: ask the proxy, and treat a non-image as "not an image".
+  const res = await fetchImage(url);
+  if (!res.ok) return null;
+  releaseImage(res);
+  return fetchImage(url);
+}
+
+/** Load an image element from a URL, for the inline preview. */
+export function loadImageElement(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    // Needed so a cross-origin image can be measured and re-encoded.
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Could not load that image for preview."));
+    img.src = src;
+  });
 }

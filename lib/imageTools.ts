@@ -83,9 +83,19 @@ export interface Rendered {
   bytes: number;
 }
 
-export function renderImage(img: HTMLImageElement, o: EditOptions): Rendered {
-  const sw = img.naturalWidth || img.width;
-  const sh = img.naturalHeight || img.height;
+/** Anything canvas can draw: an <img>, a decoded blob, or a video frame. */
+export type DrawableSource = HTMLImageElement | HTMLCanvasElement | ImageBitmap;
+
+function sourceSize(src: DrawableSource): { w: number; h: number } {
+  const any = src as unknown as { naturalWidth?: number; naturalHeight?: number; width?: number; height?: number };
+  return {
+    w: any.naturalWidth || any.width || 0,
+    h: any.naturalHeight || any.height || 0,
+  };
+}
+
+export function renderImage(img: DrawableSource, o: EditOptions): Rendered {
+  const { w: sw, h: sh } = sourceSize(img);
   const size = targetSize(sw, sh, o);
   const swap = o.rotate === 90 || o.rotate === 270;
 
