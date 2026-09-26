@@ -4743,3 +4743,29 @@ html[data-theme="dark"] .tp-stats .over { color: #ff8a80; }
   .tp-qr-preview { padding: 14px; }
   .tp-qr-preview canvas { max-width: 82vw; }
 }
+/* ========================= Image downloader ============================= */
+.tp-mini-drop {
+  display: grid;
+  place-items: center;
+  padding: 18px 12px;
+  border: 1.5px dashed var(--border);
+  border-radius: 11px;
+  text-align: center;
+  color: var(--muted);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.tp-mini-drop.over {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text);
+}
+.tp-mini-drop small { font-size: 12px; }
+
+.dl-preview {
+  display: block;
+  width: 100%;
+  max-height: 44vh;
+  object-fit: contain;
+  border-radius: 10px;
+  background: var(--panel2);
+}

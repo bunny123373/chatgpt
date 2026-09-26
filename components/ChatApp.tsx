@@ -603,6 +603,15 @@ export default function ChatApp({
   const [settingsTab, setSettingsTab] = useState<"general" | "voice" | "profile" | "projects" | "data" | "account">("general");
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  // Lets the composer's tools menu deep-link to a particular tool.
+  const [toolsTab, setToolsTab] = useState<"pdf" | "image" | "colour" | "qr" | "url" | "data" | "make" | null>(null);
+  const [toolsImageDir, setToolsImageDir] = useState<"edit" | "download" | undefined>(undefined);
+
+  const openTools = (tab: typeof toolsTab, imageDir?: "edit" | "download") => {
+    setToolsTab(tab);
+    setToolsImageDir(imageDir);
+    setToolsOpen(true);
+  };
   const [helpOpen, setHelpOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -1637,6 +1646,8 @@ export default function ChatApp({
           apiKey={settings.apiKey.trim()}
           baseUrl={settings.baseUrl}
           signedIn={Boolean(profile)}
+          initialTab={toolsTab ?? undefined}
+          imageDir={toolsImageDir}
         />
       ) : null}
 
@@ -1838,6 +1849,7 @@ export default function ChatApp({
           onFiles={setPendingFiles}
           onFilesAttach={(picked) => void attachFiles(picked)}
       onConvertPdf={(file) => void convertToPdf(file)}
+      onOpenImageDownloader={() => openTools("image", "download")}
           filesBusy={filesBusy}
           mode={settings.mode}
           onModeChange={(m) => setSettings((s) => ({ ...s, mode: m }))}

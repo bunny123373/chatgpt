@@ -26,7 +26,7 @@ import {
   type ImageFormat,
 } from "@/lib/imageTools";
 import { coerceRows, parseCsv as parseCsvRows, useSandbox } from "@/lib/sandbox";
-import { ColourTools as ColourTab, QrTools as QrTab, UrlTools as UrlTab } from "./ToolTabs";
+import { ColourTools as ColourTab, ImageDownloader, QrTools as QrTab, UrlTools as UrlTab } from "./ToolTabs";
 
 type Tab = "pdf" | "image" | "colour" | "qr" | "url" | "data" | "make";
 
@@ -589,7 +589,8 @@ function PdfTools({ notify }: { notify: (m: string) => void }) {
 
 /* ============================ Image tools =============================== */
 
-function ImageTools({ notify }: { notify: (m: string) => void }) {
+function ImageTools({ notify, initialDir }: { notify: (m: string) => void; initialDir?: "edit" | "download" }) {
+  const [dir, setDir] = useState<"edit" | "download">(initialDir ?? "edit");
   const [src, setSrc] = useState<HTMLImageElement | null>(null);
   const [name, setName] = useState("image");
   const [opts, setOpts] = useState<EditOptions>(DEFAULT_EDIT);
@@ -639,6 +640,19 @@ function ImageTools({ notify }: { notify: (m: string) => void }) {
 
   return (
     <div className="tp-col">
+      <div className="tp-seg">
+        <button type="button" className={dir === "edit" ? "on" : ""} onClick={() => setDir("edit")}>
+          Convert &amp; resize
+        </button>
+        <button type="button" className={dir === "download" ? "on" : ""} onClick={() => setDir("download")}>
+          Download from URL
+        </button>
+      </div>
+
+      {dir === "download" ? (
+        <ImageDownloader notify={notify} onSendToEditor={(f: File) => void pick(f)} />
+      ) : (
+        <>
       <p className="tp-lede">Convert, resize, compress, rotate and flip. Nothing is uploaded.</p>
 
       <input
@@ -820,6 +834,8 @@ function ImageTools({ notify }: { notify: (m: string) => void }) {
             ) : null}
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
@@ -1065,8 +1081,10 @@ export default function ToolsPage({
   apiKey,
   baseUrl,
   signedIn,
-}: GenProps & { onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>("pdf");
+  initialTab,
+  imageDir,
+}: GenProps & { onClose: () => void; initialTab?: Tab; imageDir?: "edit" | "download" }) {
+  const [tab, setTab] = useState<Tab>(initialTab ?? "pdf");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1112,7 +1130,7 @@ export default function ToolsPage({
 
       <div className="tp-body">
         {tab === "pdf" ? <PdfTools notify={notify} /> : null}
-        {tab === "image" ? <ImageTools notify={notify} /> : null}
+        {tab === "image" ? <ImageTools notify={notify} initialDir={imageDir} /> : null}
         {tab === "colour" ? <ColourTab /> : null}
         {tab === "qr" ? <QrTab notify={notify} /> : null}
         {tab === "url" ? <UrlTab notify={notify} /> : null}

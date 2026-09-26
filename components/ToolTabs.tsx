@@ -17,6 +17,13 @@ import {
 import { encodeQr, qrCapacity, qrToCanvas, type EcLevel } from "@/lib/qrcode";
 import { URL_PRESETS, buildUrl, describeQuery, parseUrl, type BuildOptions } from "@/lib/urlTools";
 import { downloadBlob } from "@/lib/pdfWriter";
+import {
+  fetchImage,
+  formatSize,
+  releaseImage,
+  saveBlob,
+  type FetchedImage,
+} from "@/lib/imageDownloader";
 
 /* ============================ Colour tools ============================== */
 
@@ -371,6 +378,184 @@ export function QrTools({ notify }: { notify: (m: string) => void }) {
           </p>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/* ========================= Image downloader ============================ */
+
+/**
+ * Pull an image down from a URL.
+ *
+ * Goes through /api/image-proxy because most hosts send no CORS headers, so a
+ * plain link either opens in a tab or refuses to save at all. The proxy also
+ * sets Content-Disposition, which is what forces a real download.
+ */
+export function ImageDownloader({
+  notify,
+  onSendToEditor,
+}: {
+  notify: (m: string) => void;
+  /** Hand the fetched blob to the image editor for conversion. */
+  onSendToEditor?: (file: File) => void;
+}) {
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [img, setImg] = useState<FetchedImage | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  // Blob URLs are not garbage collected, so release the previous one.
+  useEffect(() => () => releaseImage(img), [img]);
+
+  const load = async (raw: string) => {
+    setError("");
+    if (!raw.trim()) {
+      setError("Paste an image URL first.");
+      return;
+    }
+    setBusy(true);
+    setImg(null);
+    const res = await fetchImage(raw);
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.message);
+      notify(res.message);
+      return;
+    }
+    setImg(res);
+    notify(`Loaded ${res.filename}`);
+  };
+
+  const save = () => {
+    if (!img) return;
+    saveBlob(img.blob, img.filename);
+    notify(`Downloaded ${img.filename}`);
+  };
+
+  const sendToEditor = () => {
+    if (!img || !onSendToEditor) return;
+    const ext = img.type.split("/")[1] || "png";
+    const base = img.filename.replace(/\.[^.]+$/, "");
+    onSendToEditor(new File([img.blob], `${base}.${ext}`, { type: img.type }));
+    notify("Sent to the image editor");
+  };
+
+  return (
+    <div className="tp-col">
+      <p className="tp-lede">
+        Save an image straight from its URL, whatever the file size. Fetched through this site&apos;s server, so it
+        works on hosts that block cross-origin downloads.
+      </p>
+
+      <div className="tp-io">
+        <div className="tp-io-in">
+          <div className="tp-out-head">
+            <b>Image URL</b>
+            <button
+              type="button"
+              className="tp-btn sm"
+              onClick={async () => {
+                try {
+                  const text = await navigator.clipboard.readText();
+                  setUrl(text);
+                  await load(text);
+                } catch {
+                  notify("Couldn't read the clipboard — paste the URL instead");
+                }
+              }}
+            >
+              Paste
+            </button>
+          </div>
+          <input
+            className="tp-url-input"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void load(url);
+            }}
+            placeholder="https://example.com/photo.jpg"
+            spellCheck={false}
+            inputMode="url"
+          />
+          <div className="tp-btns">
+            <button type="button" className="tp-btn primary sm" onClick={() => void load(url)} disabled={busy}>
+              {busy ? "Fetching…" : "Fetch image"}
+            </button>
+            {img ? (
+              <button type="button" className="tp-btn sm" onClick={() => setImg(null)}>
+                Clear
+              </button>
+            ) : null}
+          </div>
+          {error ? <p className="tp-err">{error}</p> : null}
+          <p className="tp-note">
+            Up to 25 MB. Private and loopback addresses are refused, so this cannot be used to reach machines on your
+            network.
+          </p>
+        </div>
+
+        <div className="tp-io-mid">
+          <div className="tp-grp">
+            <b>Also drop a file or a link</b>
+            <div
+              className={`tp-mini-drop${dragOver ? " over" : ""}`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const text = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain");
+                if (text) {
+                  setUrl(text.trim());
+                  void load(text.trim());
+                }
+              }}
+            >
+              <small>Drag an image here, or a link to one</small>
+            </div>
+          </div>
+        </div>
+
+        <div className="tp-io-out">
+          <div className="tp-out-head">
+            <b>Preview</b>
+            {img ? <span className="tp-dim">{formatSize(img.bytes)}</span> : null}
+          </div>
+          {img ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="dl-preview" src={img.url} alt="" />
+              <div className="tp-stats">
+                <span>{img.type.replace("image/", "").toUpperCase()}</span>
+                {img.width ? <span>{img.width}×{img.height}</span> : null}
+                <span>{formatSize(img.bytes)}</span>
+              </div>
+              <p className="tp-note">{img.filename}</p>
+              <div className="tp-btns">
+                <button type="button" className="tp-btn primary sm" onClick={save}>
+                  <DownloadIcon size={15} />
+                  Download
+                </button>
+                {onSendToEditor ? (
+                  <button type="button" className="tp-btn sm" onClick={sendToEditor}>
+                    Open in editor
+                  </button>
+                ) : null}
+                <a className="tp-btn sm" href={img.url} target="_blank" rel="noreferrer noopener">
+                  Open
+                </a>
+              </div>
+            </>
+          ) : (
+            <p className="tp-note">Paste a URL and fetch it to see the image here.</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

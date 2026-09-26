@@ -15,6 +15,7 @@ import {
   TemplateIcon,
   PlusIcon,
   PdfIcon,
+  DownloadIcon,
 } from "./Icons";
 import { IMAGE_RATIOS, RATIO_OUTPUT, type FileRef, type ImageRatio, type ResponseMode } from "@/lib/types";
 
@@ -34,6 +35,8 @@ interface Props {
   onFilesAttach: (picked: File[]) => void;
   /** Convert a picked file to PDF and open the print dialog. */
   onConvertPdf: (file: File) => void;
+  /** Open the Tools page on the image downloader. */
+  onOpenImageDownloader: () => void;
   /** True while documents are being parsed. */
   filesBusy: boolean;
   searching: boolean;
@@ -78,6 +81,7 @@ export default function Composer({
   onFilesAttach,
   filesBusy,
   onConvertPdf,
+  onOpenImageDownloader,
   searching,
   onToggleSearch,
   tools,
@@ -550,6 +554,22 @@ export default function Composer({
                     <span className="tm-text">
                       <b>Convert to PDF</b>
                       <small>Turn a document, image or text file into a PDF</small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setToolsOpen(false);
+                      onOpenImageDownloader();
+                    }}
+                  >
+                    <span className="tm-ic">
+                      <DownloadIcon size={16} />
+                    </span>
+                    <span className="tm-text">
+                      <b>Download image from URL</b>
+                      <small>Save an image from any link, then convert it</small>
                     </span>
                   </button>
                   <button
