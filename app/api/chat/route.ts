@@ -1,4 +1,6 @@
 import { runTool, TOOL_DEFS } from "@/lib/tools";
+import { formatHits, runSearch } from "@/lib/search";
+import { providerSupportsSearch } from "@/lib/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -202,11 +204,50 @@ export async function POST(req: Request) {
 
   const search = body.search === true;
   const batchQueries = Array.isArray(body.queries) && body.queries.length > 0 ? body.queries.slice(0, 5) : null;
-  const webContext = search && batchQueries
-    ? await webSearch(batchQueries, apiKey, baseUrl)
-    : search && lastUserText
-      ? await webSearch(lastUserText, apiKey, baseUrl)
-      : "";
+  const queries = batchQueries ?? (lastUserText ? [lastUserText] : []);
+
+  /**
+   * Decide what "search" means for this request.
+   *
+   * It used to mean exactly one thing: POST {baseUrl}/search on xKiro. That endpoint
+   * does not exist on OpenRouter or Cloudflare, so on any other provider the toggle
+   * was a no-op producing an empty string, which reads as "searched and found
+   * nothing" rather than "search never ran". A configured search provider is now
+   * used first, because that is what makes the toggle mean the same thing whatever
+   * model is answering. The provider's own endpoint is only a fallback, for the one
+   * provider that actually has one.
+   *
+   * The search key arrives in its own header and is never mixed with apiKey, so a
+   * Tavily key cannot end up being sent to a chat provider.
+   */
+  let webContext = "";
+  let searchNote = "";
+  if (search && queries.length) {
+    const searchProvider = (req.headers.get("x-search-provider") ?? "").trim();
+    const searchKey = (req.headers.get("x-search-key") ?? "").trim();
+
+    if (searchProvider) {
+      const outcome = await runSearch({ provider: searchProvider, apiKey: searchKey, queries, maxPerQuery: 6 });
+      if (outcome.ok) {
+        webContext = formatHits(outcome.hits, "Web search results from " + outcome.provider);
+        if (outcome.error) searchNote = outcome.error;
+        else if (!webContext) searchNote = "The search provider returned nothing for that query.";
+      } else {
+        // Fall through to the provider's own search rather than giving up: a
+        // rejected Tavily key should not also cost the user their xKiro search.
+        searchNote = outcome.error ?? "Search failed.";
+        webContext = await webSearch(queries, apiKey, baseUrl);
+        if (webContext) searchNote += " (Fell back to the provider's own search.)";
+      }
+    } else if (providerSupportsSearch(baseUrl)) {
+      webContext = await webSearch(queries, apiKey, baseUrl);
+      if (!webContext) searchNote = "The provider's own search returned nothing.";
+    } else {
+      // The case that matters. Say plainly that no search happened, rather than
+      // handing the model an empty context and letting it answer from memory.
+      searchNote = "No web search is set up. Choose a search provider in Settings, or use a provider that includes one.";
+    }
+  }
   const chatMessages: InMsg[] = webContext
     ? [
         {
@@ -356,7 +397,12 @@ export async function POST(req: Request) {
          * sent and the UI stays quiet.
          */
         const routedVia = upstream.headers.get("x-routed-via");
-        if (routedVia) controller.enqueue(sse({ routed_via: routedVia }));
+        // Why the web search did or did not contribute. Without this the toggle is
+  // silent: an empty web context is indistinguishable from a search that found
+  // nothing, so a user who forgot to configure a search provider would just see
+  // the model answer from memory and assume that was the point.
+  if (searchNote) controller.enqueue(sse({ note: searchNote }));
+  if (routedVia) controller.enqueue(sse({ routed_via: routedVia }));
         if (toolsUsed.length) {
           controller.enqueue(sse({ delta: "", tools_used: toolsUsed }));
         }

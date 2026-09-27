@@ -355,10 +355,20 @@ chatsRef.current = chats;
             ...(settings.apiKey.trim() ? { "x-api-key": settings.apiKey.trim() } : {}),
             "x-base-url": settings.baseUrl.trim(),
           },
-          body: JSON.stringify({ prompt: src.content, ratio: settings.imageRatio, variation: true }),
+          body: JSON.stringify({
+            prompt: src.content,
+            ratio: settings.imageRatio,
+            variation: true,
+            // Only sent when chosen. Providers with a single fixed image model
+            // ignore it, so there is nothing to configure over there.
+            ...(settings.imageModel.trim() ? { model: settings.imageModel.trim() } : {}),
+          }),
         });
-        const data = (await res.json()) as { url?: string; error?: string };
+        const data = (await res.json()) as { url?: string; error?: string; note?: string };
         if (!res.ok || !data.url) throw new Error(data.error || "Generation failed");
+        // Cloudflare's image models take no size parameter, so the chosen ratio is
+        // not applied. Said out loud rather than left looking like a silent bug.
+        if (data.note) notify(data.note);
         const newMsg: Msg = { id: uid(), role: "assistant", content: src.content, generatedImage: data.url };
         setChats((prev) =>
           prev.map((c) =>
@@ -1090,6 +1100,14 @@ useEffect(() => {
             "Content-Type": "application/json",
             ...(settings.apiKey.trim() ? { "x-api-key": settings.apiKey.trim() } : {}),
             "x-base-url": settings.baseUrl.trim(),
+            // Only when search is actually on, so no search key is sent on an
+            // ordinary message.
+            ...(settings.search
+              ? {
+                  "x-search-provider": settings.searchProvider,
+                  ...(settings.searchApiKey.trim() ? { "x-search-key": settings.searchApiKey.trim() } : {}),
+                }
+              : {}),
           },
           body: JSON.stringify({
             messages: payload,
@@ -1123,6 +1141,8 @@ useEffect(() => {
             error?: string;
             tools_used?: string[];
             routed_via?: string;
+            /** Why the web search did or did not contribute to this answer. */
+            note?: string;
             usage?: Usage;
             choices?: { delta?: { content?: string } }[];
           };
@@ -1141,6 +1161,10 @@ useEffect(() => {
           }
           // Which upstream provider served this turn, when the provider says.
           if (json.routed_via) routedVia = json.routed_via;
+          // Why the web search did or did not contribute. Shown rather than
+          // swallowed, because the alternative is a silently unsearched answer
+          // that looks identical to a searched one.
+          if (json.note) notify(json.note);
           if (json.usage) usage = { ...json.usage };
           const piece = json.delta ?? json.choices?.[0]?.delta?.content ?? "";
           if (piece) {
@@ -1475,9 +1499,13 @@ useEffect(() => {
           ...(settings.apiKey.trim() ? { "x-api-key": settings.apiKey.trim() } : {}),
           "x-base-url": settings.baseUrl.trim(),
         },
-        body: JSON.stringify({ prompt, ratio: settings.imageRatio }),
+        body: JSON.stringify({
+          prompt,
+          ratio: settings.imageRatio,
+          ...(settings.imageModel.trim() ? { model: settings.imageModel.trim() } : {}),
+        }),
       });
-      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string; note?: string };
       if (!res.ok || !data.url) {
         throw new Error(data.error || `HTTP ${res.status}`);
       }

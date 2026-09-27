@@ -1,6 +1,7 @@
 "use client";
 import { useDismiss } from "@/lib/useDismiss";
-import { PROVIDERS, providerForUrl } from "@/lib/providers";
+import { CLOUDFLARE_DEFAULT_IMAGE_MODEL, CLOUDFLARE_IMAGE_MODELS, PROVIDERS, providerForUrl } from "@/lib/providers";
+import { SEARCH_PROVIDERS, searchProviderDef } from "@/lib/searchMeta";
 import { playSound, unlockAudio } from "@/lib/sound";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -285,16 +286,113 @@ export default function SettingsModal({
                 {provider?.note ? <small className="set-hint">{provider.note}</small> : null}
               </div>
 
+              /* Web search is a separate service with a separate key and separate
+                 billing, so it is configured apart from the chat provider. Its endpoint
+                 is fixed per provider in lib/searchMeta.ts and cannot be typed here,
+                 which is what stops a search key being sent to a host of the user's
+                 choosing. */
+              <div className="set-row col">
+                <h3 className="set-heading">Web search</h3>
+                <p className="set-desc">
+                  Used when the search toggle is on, whatever model is answering.
+                  {provider?.supports.search
+                    ? " This provider also has a search endpoint of its own, used when none is chosen here."
+                    : ""}
+                </p>
+                <div className="preset-row">
+                  <button
+                    type="button"
+                    className={`preset${settings.searchProvider ? "" : " on"}`}
+                    aria-pressed={!settings.searchProvider}
+                    onClick={() => set("searchProvider", "")}
+                  >
+                    {provider?.supports.search ? "Provider's own" : "None"}
+                  </button>
+                  {SEARCH_PROVIDERS.map((sp) => (
+                    <button
+                      key={sp.id}
+                      type="button"
+                      className={`preset${settings.searchProvider === sp.id ? " on" : ""}`}
+                      aria-pressed={settings.searchProvider === sp.id}
+                      onClick={() => set("searchProvider", sp.id)}
+                      title={sp.note}
+                    >
+                      {sp.label}
+                    </button>
+                  ))}
+                </div>
+                {(() => {
+                  const sp = searchProviderDef(settings.searchProvider);
+                  if (!sp) return null;
+                  return (
+                    <div>
+                      <label className="set-label" htmlFor="searchApiKey">
+                        {sp.label} key
+                      </label>
+                      <input
+                        id="searchApiKey"
+                        type="password"
+                        autoComplete="off"
+                        spellCheck={false}
+                        placeholder={sp.keyHint}
+                        value={settings.searchApiKey}
+                        onChange={(e) => set("searchApiKey", e.target.value)}
+                      />
+                      <p className="help">
+                        {sp.note} Get a key at {sp.signup}.
+                      </p>
+                      <p className="help">
+                        Stored only in this browser, and sent to {sp.label}’s own fixed endpoint.
+                        Never to the chat provider.
+                      </p>
+                    </div>
+                  );
+                })()}
+              </div>
+              {provider?.imageApi === "cloudflare-run" ? (
+                <div className="set-row col">
+                  <span className="set-label">
+                    Image model
+                    <small>
+                      Each Cloudflare image model is a separate endpoint, so this changes
+                      the URL that is called. None of them take a size parameter, so the
+                      aspect ratio is not applied on this provider.
+                    </small>
+                  </span>
+                  <div className="preset-row">
+                    {CLOUDFLARE_IMAGE_MODELS.map((m) => {
+                      const on = (settings.imageModel || CLOUDFLARE_DEFAULT_IMAGE_MODEL) === m;
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          className={`preset${on ? " on" : ""}`}
+                          aria-pressed={on}
+                          onClick={() => set("imageModel", m)}
+                          title={m}
+                        >
+                          {m.split("/").pop()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
               <div className="set-row">
                 <span className="set-label">
                   Test connection
                   <small>
                     Asks the provider for its model list. Also used to fill the picker below.
-                    {provider && !provider.supports.search ? " This provider has no web-search endpoint, so that toggle is hidden." : ""}
+                    {provider && !provider.supports.search ? " This provider has no search endpoint of its own, so choose a search provider below to make the toggle work." : ""}
+                    {provider && !provider.supports.models
+                      ? " This provider publishes no model list, so this cannot work here. Type the model id in the field below instead."
+                      : ""}
                   </small>
                 </span>
-                <button type="button" className="btn" onClick={() => void testProvider()} disabled={fetchingModels}>
-                  {fetchingModels ? "Testing" : "Test"}
+                {/* Disabled rather than left to fail: a button that returns 404 on
+                    every press reads as a broken app rather than an absent feature. */}
+                <button type="button" className="btn" onClick={() => void testProvider()} disabled={fetchingModels || provider?.supports.models === false}>
+                  {fetchingModels ? "Testing" : provider?.supports.models === false ? "Not available" : "Test"}
                 </button>
               </div>
 

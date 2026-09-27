@@ -209,6 +209,25 @@ export interface Settings {
   imageRatio: ImageRatio;
   /** User-bubble color (see BUBBLE_COLORS). */
   bubbleColor: BubbleColor;
+  /**
+   * Which web search to use, from lib/searchMeta.ts. Empty means none is
+   * configured, and the search toggle then says so instead of quietly doing
+   * nothing.
+   */
+  searchProvider: string;
+  /**
+   * The key for that search provider, kept apart from apiKey because it belongs
+   * to a different service with different billing. It goes to the search
+   * provider's fixed endpoint and nowhere else.
+   */
+  searchApiKey: string;
+  /**
+   * Image model id, for providers that let you choose one.
+   *
+   * Only meaningful on the Cloudflare path, where each model is a separate
+   * endpoint. Ignored by providers with a single fixed image model.
+   */
+  imageModel: string;
   /** Voice id used by the 🔊 read-aloud button (xKiro TTS, see GET /v1/audio/voices). */
   ttsVoice: string;
   /** Read-aloud speed multiplier (0.5–2, xKiro `speed`). */
@@ -315,8 +334,13 @@ export const DEFAULT_SETTINGS: Settings = {
   systemPrompt: "You are Next AI, a helpful and concise assistant. Answer in Markdown.",
   streaming: true,
   search: false,
+  // No search provider out of the box. Web search is opt-in and needs its own
+  // key, so nothing is sent anywhere until the user picks one deliberately.
+  searchProvider: "",
+  searchApiKey: "",
   tools: false,
   imageRatio: "1:1",
+  imageModel: "",
   bubbleColor: "default",
   ttsVoice: "american-female",
   ttsSpeed: 1,

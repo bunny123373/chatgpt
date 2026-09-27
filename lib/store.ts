@@ -1,4 +1,5 @@
 import { BUBBLE_COLORS, DEFAULT_SETTINGS, IMAGE_RATIOS, type Chat, type Msg, type Project, type PromptTemplate, type RemoteModel, type Settings } from "./types";
+import { searchProviderDef } from "./searchMeta";
 
 const K_CHATS = "chatgpt2.chats";
 const K_ACTIVE = "chatgpt2.active";
@@ -170,6 +171,23 @@ export function loadSettings(): Settings {
   // Default OFF, and never inferred. Syncing sends conversation content to a
   // server, so an existing profile must opt in rather than acquire it by upgrade.
   if (typeof merged.sync !== "boolean") merged.sync = false;
+  // A search provider id we do not recognise, or a key that is not a string,
+  // is dropped rather than passed on. The id ends up choosing an endpoint, and
+  // an unknown one must not fall through to "use the default", which would be
+  // some other provider's endpoint than the user asked for.
+  if (typeof merged.searchProvider === "string") {
+    merged.searchProvider = searchProviderDef(merged.searchProvider) ? merged.searchProvider : "";
+  } else {
+    merged.searchProvider = "";
+  }
+  merged.searchApiKey = typeof merged.searchApiKey === "string" ? merged.searchApiKey.trim().slice(0, 300) : "";
+  // This lands in a URL path on the Cloudflare image route, so it is matched
+  // against the characters a real model id uses rather than merely trimmed.
+  merged.imageModel =
+    typeof merged.imageModel === "string" &&
+    /^@?[a-z0-9][a-z0-9._-]*(\/[a-z0-9][a-z0-9._-]*)*$/i.test(merged.imageModel.trim())
+      ? merged.imageModel.trim().slice(0, 120)
+      : "";
   // A cached provider model list. Dropped rather than trusted if it is not
   // an array of strings, so a hand-edited or corrupted blob cannot reach the
   // picker and crash it.
