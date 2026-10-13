@@ -20,7 +20,6 @@ import {
 import { BorderBeam } from "border-beam";
 import { MetalFx, useMetalBend } from "metal-fx";
 import { VoiceBeam, useMicrophone } from "voice-glow";
-import { Liquid } from "liquid-gooey";
 import { IMAGE_RATIOS, RATIO_OUTPUT, type FileRef, type ImageRatio, type ResponseMode } from "@/lib/types";
 import { extractUrls, looksLikeImageUrl, probeImageUrl } from "@/lib/imageDownloader";
 
@@ -644,45 +643,20 @@ export default function Composer({
           style={{ overflow: "visible" }}
         >
           <div className="tools">
-            {/*
-              The goo is scoped to the + button alone. liquid-gooey builds its SVG
-              filter region from the GROUP's own box (x/y -pad, w/h size + pad*2),
-              and the tools panel is a ~400px popover anchored above a 32px button
-              group — so it sits outside that region and the silhouette gets cut
-              off part-way through the filter, which reads as a dirty smear rather
-              than liquid. Keeping the group to the button alone keeps every blob
-              inside its region, so the morph is clean.
-
-              The panel below stays an ordinary popover.
-            */}
-            <Liquid
-              className="tools-liquid"
-              blur={6}
-              contrast={18}
-              fill={toolsOpen ? "var(--panel2)" : "transparent"}
-              shadow={toolsOpen ? "0 3px 10px rgba(0, 0, 0, 0.35)" : undefined}
+            <button
+              type="button"
+              className={`plus-btn${toolsOpen ? " on" : ""}`}
+              title="Add tools"
+              aria-label="Add tools"
+              aria-haspopup="menu"
+              aria-expanded={toolsOpen}
+              onClick={() => {
+                setToolsOpen((v) => !v);
+                setTplOpen(false);
+              }}
             >
-              <Liquid.Item
-                className="tools-btn-item"
-                morph={{ shape: true, bounce: 0.55 }}
-                style={{ display: "flex" }}
-              >
-                <button
-                  type="button"
-                  className={`plus-btn${toolsOpen ? " on" : ""}`}
-                  title="Add tools"
-                  aria-label="Add tools"
-                  aria-haspopup="menu"
-                  aria-expanded={toolsOpen}
-                  onClick={() => {
-                    setToolsOpen((v) => !v);
-                    setTplOpen(false);
-                  }}
-                >
-                  <PlusIcon />
-                </button>
-              </Liquid.Item>
-            </Liquid>
+              <PlusIcon />
+            </button>
             <input
               ref={fileRef}
               type="file"

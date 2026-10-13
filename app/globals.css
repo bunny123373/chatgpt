@@ -3548,20 +3548,14 @@ html[data-theme="light"] .doc-chip.err {
   transform: rotate(45deg);
 }
 
-/* Tools popover */
 /* Tools popover.
 
-   Deliberately NOT wrapped in the goo group. liquid-gooey sizes its SVG filter
-   region from the GROUP's box (x/y -pad, w/h size + pad*2), and this panel is a
-   ~400px popover anchored above a 32px button group — so it falls outside that
-   region and the silhouette is cut off mid-filter. The goo is scoped to the +
-   button instead, which sits inside its own group box. */
-.tools-liquid {
-  flex: 0 0 auto;
-}
-.tools-btn-item {
-  display: flex;
-}
+   No liquid effect here, deliberately. liquid-gooey draws its silhouette into an
+   SVG with overflow: visible, and sizes the filter region from the group's box
+   plus pad = blur*3 + shadow extent + filterPadding — around 60px at the tuned
+   defaults. On the + button that glow bled across the textarea and the mic
+   button; on this popover the panel falls outside the region entirely and the
+   silhouette is cut off mid-filter. Neither placement earns its cost. */
 .tools-menu {
   position: absolute;
   bottom: calc(100% + 8px);

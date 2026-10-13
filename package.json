@@ -10,7 +10,6 @@
   "dependencies": {
     "border-beam": "^1.4.1",
     "firebase": "^12.19.0",
-    "liquid-gooey": "^0.2.2",
     "metal-fx": "^2.0.11",
     "next": "16.3.6",
     "react": "19.2.8",
