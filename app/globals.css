@@ -867,34 +867,8 @@ html[data-theme="light"] .msg-actions button.del {
 }
 .typing {
   display: inline-flex;
-  gap: 4px;
   align-items: center;
   padding: 6px 0;
-}
-.typing i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--muted);
-  animation: blink 1.3s infinite;
-}
-.typing i:nth-child(2) {
-  animation-delay: 0.18s;
-}
-.typing i:nth-child(3) {
-  animation-delay: 0.36s;
-}
-@keyframes blink {
-  0%,
-  60%,
-  100% {
-    opacity: 0.25;
-    transform: translateY(0);
-  }
-  30% {
-    opacity: 1;
-    transform: translateY(-3px);
-  }
 }
 .cursor {
   display: inline-block;
@@ -1049,6 +1023,23 @@ html[data-theme="light"] .err {
   place-items: center;
   transition: opacity 0.15s;
   flex: 0 0 auto;
+}
+
+/* The metal send button.
+
+   MetalFx renders its own div around .send, so .send's `flex: 0 0 auto` stops
+   applying — it is no longer a child of .field. The wrapper takes over as the
+   flex item instead.
+
+   `color: inherit` hands the icon back to .metal-fx-root, which already ships a
+   matching pair (#f8f8f8 on dark, #1d1d1d on light). Without it the button would
+   keep --send-fg (#0d0d0d on the dark theme) and sit as a dark glyph on a dark
+   metal disc. */
+.send-metal {
+  flex: 0 0 auto;
+}
+.send-metal .send {
+  color: inherit;
 }
 .send.stop {
   background: #d95555;
@@ -3558,6 +3549,19 @@ html[data-theme="light"] .doc-chip.err {
 }
 
 /* Tools popover */
+/* Tools popover.
+
+   Deliberately NOT wrapped in the goo group. liquid-gooey sizes its SVG filter
+   region from the GROUP's box (x/y -pad, w/h size + pad*2), and this panel is a
+   ~400px popover anchored above a 32px button group — so it falls outside that
+   region and the silhouette is cut off mid-filter. The goo is scoped to the +
+   button instead, which sits inside its own group box. */
+.tools-liquid {
+  flex: 0 0 auto;
+}
+.tools-btn-item {
+  display: flex;
+}
 .tools-menu {
   position: absolute;
   bottom: calc(100% + 8px);
@@ -6715,9 +6719,6 @@ a:focus-visible,
   background: var(--muted);
 }
 .prov-dot[data-id="xkiro"] { background: #7c8cff; }
-.prov-dot[data-id="freellmapi"] { background: #37c2ff; }
-.prov-dot[data-id="openrouter"] { background: #9d7cff; }
-.prov-dot[data-id="openai"] { background: #4ade80; }
 .prov-dot[data-id="custom"] { background: var(--border2); }
 .prov-menu {
   /* Absolute against .prov-pick, not fixed with invented coordinates. Hardcoded

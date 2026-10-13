@@ -9,7 +9,7 @@ live model.
 
 - **Streaming responses** via a server route handler (`app/api/chat/route.ts`) using `fetch` + `ReadableStream`. The browser never receives your API key.
 - **Server-side key handling** — reads `XKIRO_API_KEY` (or `OPENAI_API_KEY`) from the environment; a key entered in Settings is forwarded as a request header and never persisted server-side.
-- **Any OpenAI-compatible backend** — xKiro (default), OpenAI, Groq, Together, OpenRouter, Ollama, vLLM, LM Studio. Change the base URL in Settings.
+- **xKiro only, by default** — the sole preset, and the only provider that needs no key pasted into Settings, because its credential is read from `XKIRO_API_KEY` on the server. Any other OpenAI-compatible endpoint can still be typed into the base URL in Settings, but you must supply that provider's own key.
 - **Markdown rendering** — headings, lists, tables, blockquotes, inline code, and fenced code blocks with a language label, a copy button, and light syntax highlighting. Zero Markdown dependencies.
 - **Chat history** — conversations are created, titled, renamed, searched, and deleted; all state lives in `localStorage`.
 - **Model picker** — GPT-4o, GPT-4o mini, GPT-4.1, o4-mini, or any custom model id.

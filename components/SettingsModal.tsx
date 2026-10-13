@@ -1,6 +1,6 @@
 "use client";
 import { useDismiss } from "@/lib/useDismiss";
-import { CLOUDFLARE_DEFAULT_IMAGE_MODEL, CLOUDFLARE_IMAGE_MODELS, PROVIDERS, providerForUrl } from "@/lib/providers";
+import { PROVIDERS, providerForUrl } from "@/lib/providers";
 import { SEARCH_PROVIDERS, searchProviderDef } from "@/lib/searchMeta";
 import { playSound, unlockAudio } from "@/lib/sound";
 import Link from "next/link";
@@ -349,35 +349,6 @@ export default function SettingsModal({
                   );
                 })()}
               </div>
-              {provider?.imageApi === "cloudflare-run" ? (
-                <div className="set-row col">
-                  <span className="set-label">
-                    Image model
-                    <small>
-                      Each Cloudflare image model is a separate endpoint, so this changes
-                      the URL that is called. None of them take a size parameter, so the
-                      aspect ratio is not applied on this provider.
-                    </small>
-                  </span>
-                  <div className="preset-row">
-                    {CLOUDFLARE_IMAGE_MODELS.map((m) => {
-                      const on = (settings.imageModel || CLOUDFLARE_DEFAULT_IMAGE_MODEL) === m;
-                      return (
-                        <button
-                          key={m}
-                          type="button"
-                          className={`preset${on ? " on" : ""}`}
-                          aria-pressed={on}
-                          onClick={() => set("imageModel", m)}
-                          title={m}
-                        >
-                          {m.split("/").pop()}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
               <div className="set-row">
                 <span className="set-label">
                   Test connection
@@ -415,7 +386,11 @@ export default function SettingsModal({
                     onChange={(e) => set("baseUrl", e.target.value)}
                   />
                   <p className="help">
-                    Any OpenAI-compatible endpoint works — xKiro, OpenAI, Groq, Together, OpenRouter, Ollama, vLLM.
+                    xKiro is the only preset, and the only one that needs no key — its
+                    credential is already on the server. Any other OpenAI-compatible
+                    endpoint can be typed in here (Groq, Together, Ollama, vLLM, or a
+                    local model server), but you must paste that provider&apos;s own key
+                    above, or sends will fail with a 503 for that host.
                   </p>
                 </div>
 

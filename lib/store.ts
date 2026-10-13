@@ -181,13 +181,6 @@ export function loadSettings(): Settings {
     merged.searchProvider = "";
   }
   merged.searchApiKey = typeof merged.searchApiKey === "string" ? merged.searchApiKey.trim().slice(0, 300) : "";
-  // This lands in a URL path on the Cloudflare image route, so it is matched
-  // against the characters a real model id uses rather than merely trimmed.
-  merged.imageModel =
-    typeof merged.imageModel === "string" &&
-    /^@?[a-z0-9][a-z0-9._-]*(\/[a-z0-9][a-z0-9._-]*)*$/i.test(merged.imageModel.trim())
-      ? merged.imageModel.trim().slice(0, 120)
-      : "";
   // A cached provider model list. Dropped rather than trusted if it is not
   // an array of strings, so a hand-edited or corrupted blob cannot reach the
   // picker and crash it.

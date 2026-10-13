@@ -359,16 +359,10 @@ chatsRef.current = chats;
             prompt: src.content,
             ratio: settings.imageRatio,
             variation: true,
-            // Only sent when chosen. Providers with a single fixed image model
-            // ignore it, so there is nothing to configure over there.
-            ...(settings.imageModel.trim() ? { model: settings.imageModel.trim() } : {}),
           }),
         });
-        const data = (await res.json()) as { url?: string; error?: string; note?: string };
+        const data = (await res.json()) as { url?: string; error?: string };
         if (!res.ok || !data.url) throw new Error(data.error || "Generation failed");
-        // Cloudflare's image models take no size parameter, so the chosen ratio is
-        // not applied. Said out loud rather than left looking like a silent bug.
-        if (data.note) notify(data.note);
         const newMsg: Msg = { id: uid(), role: "assistant", content: src.content, generatedImage: data.url };
         setChats((prev) =>
           prev.map((c) =>
@@ -1502,10 +1496,9 @@ useEffect(() => {
         body: JSON.stringify({
           prompt,
           ratio: settings.imageRatio,
-          ...(settings.imageModel.trim() ? { model: settings.imageModel.trim() } : {}),
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string; note?: string };
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
       if (!res.ok || !data.url) {
         throw new Error(data.error || `HTTP ${res.status}`);
       }
@@ -2178,6 +2171,7 @@ useEffect(() => {
           onSend={() => send()}
           onStop={stop}
           busy={busy}
+          theme={settings.theme}
           modelLabel={shownModel}
           attach={attach}
           onAttach={setAttach}

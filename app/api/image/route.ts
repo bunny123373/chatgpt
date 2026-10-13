@@ -1,12 +1,8 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { CLOUDFLARE_DEFAULT_IMAGE_MODEL, providerForUrl } from "@/lib/providers";
-
 /** Free-tier image model on xKiro (text -> image, no source image support). */
 const IMAGE_MODEL = "sensenova/sensenova-u1.5-lite";
-
-
 
 /**
  * Pixel sizes per aspect ratio.
@@ -15,9 +11,6 @@ const IMAGE_MODEL = "sensenova/sensenova-u1.5-lite";
  *   256x256, 512x512, 1024x1024, 1024x1792, 1792x1024, 1024x1536, 1536x1024
  * Anything else is rejected with "Unsupported size". So each ChatGPT ratio
  * maps to the closest *natively supported* size here.
- *
- * Not used on the Cloudflare path, which has no size parameter at all. That is
- * reported back to the caller rather than quietly ignored.
  */
 const RATIO_SIZES: Record<string, string> = {
   "1:1": "1024x1024",
@@ -29,22 +22,10 @@ const RATIO_SIZES: Record<string, string> = {
 };
 const DEFAULT_RATIO = "1:1";
 
-/**
- * Model ids come from the client, so they land in a URL. Restricted to the
- * characters real Workers AI ids use, which also makes path traversal through
- * `..` impossible.
- */
-function sanitizeModelId(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const id = raw.trim();
-  if (!id || id.length > 120) return null;
-  return /^@?[a-z0-9][a-z0-9._-]*(\/[a-z0-9][a-z0-9._-]*)*$/i.test(id) ? id : null;
-}
-
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function POST(req: Request) {
-  let body: { prompt?: string; ratio?: string; variation?: boolean; model?: string } = {};
+  let body: { prompt?: string; ratio?: string; variation?: boolean } = {};
   try {
     body = await req.json();
   } catch {
@@ -71,8 +52,6 @@ export async function POST(req: Request) {
   const serverKey = sameProvider ? process.env.XKIRO_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || "" : "";
   const apiKey = headerKey || serverKey;
 
-  const provider = providerForUrl(baseUrl);
-
   if (!apiKey) {
     let host = baseUrl;
     try {
@@ -94,69 +73,6 @@ export async function POST(req: Request) {
     "Content-Type": "application/json",
     Authorization: `Bearer ${apiKey}`,
   };
-
-  // ---- Cloudflare Workers AI: its own endpoint, not the OpenAI one ----
-  if (provider?.imageApi === "cloudflare-run") {
-    const model = sanitizeModelId(body.model) ?? CLOUDFLARE_DEFAULT_IMAGE_MODEL;
-    // base URL is .../accounts/{id}/ai/v1 ; the run endpoint is
-    // .../accounts/{id}/ai/run/{model}. Cloudflare does not expose
-    // /v1/images/generations at all, so this cannot be a URL swap on the
-    // OpenAI path.
-    const runBase = baseUrl.replace(/\/ai\/v1$/, "");
-    if (runBase === baseUrl) {
-      return Response.json(
-        { error: `That base URL does not look like a Cloudflare Workers AI URL. It should end in /ai/v1.` },
-        { status: 400 }
-      );
-    }
-    const url = `${runBase}/ai/run/${model.split("/").map(encodeURIComponent).join("/")}`;
-
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers,
-        // prompt, steps and seed are what flux-1-schnell accepts. No size,
-        // because the model has no such parameter.
-        body: JSON.stringify({ prompt: finalPrompt.slice(0, 2048), seed: Math.floor(Math.random() * 1_000_000) }),
-        signal: AbortSignal.timeout(120_000),
-      });
-      if (!res.ok) {
-        const detail = (await res.text().catch(() => "")).slice(0, 400);
-        let msg = `${detail}`;
-        try {
-          const j = JSON.parse(detail) as { errors?: { message?: string }[]; error?: { message?: string } };
-          msg = j.errors?.[0]?.message ?? j.error?.message ?? detail;
-        } catch {
-          /* not JSON */
-        }
-        const hint =
-          res.status === 404
-            ? " Check the model id, and that YOUR_ACCOUNT_ID was replaced in the base URL."
-            : "";
-        return Response.json({ error: `Image request failed (${res.status}) - ${msg}${hint}` }, { status: res.status });
-      }
-
-      const json = (await res.json()) as { result?: { image?: string }; success?: boolean };
-      const b64 = json.result?.image;
-      if (!b64) {
-        return Response.json({ error: "Cloudflare returned no image data." }, { status: 502 });
-      }
-      // Returned as a data URL. Workers AI gives base64, not a URL, and there is
-      // no hosted object to point at, so this is the only honest way to hand the
-      // image to the client.
-      return Response.json({
-        url: `data:image/jpeg;base64,${b64}`,
-        model,
-        prompt,
-        ratio,
-        size: null,
-        note: "Cloudflare's text-to-image models have no size parameter, so the aspect ratio was not applied.",
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      return Response.json({ error: `Image generation failed: ${message}` }, { status: 500 });
-    }
-  }
 
   try {
     // 1) Submit the generation job.

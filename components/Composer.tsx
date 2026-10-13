@@ -17,6 +17,10 @@ import {
   PdfIcon,
   DownloadIcon,
 } from "./Icons";
+import { BorderBeam } from "border-beam";
+import { MetalFx, useMetalBend } from "metal-fx";
+import { VoiceBeam, useMicrophone } from "voice-glow";
+import { Liquid } from "liquid-gooey";
 import { IMAGE_RATIOS, RATIO_OUTPUT, type FileRef, type ImageRatio, type ResponseMode } from "@/lib/types";
 import { extractUrls, looksLikeImageUrl, probeImageUrl } from "@/lib/imageDownloader";
 
@@ -26,6 +30,13 @@ interface Props {
   onSend: () => void;
   onStop: () => void;
   busy: boolean;
+  /**
+   * The app's theme, from Settings. Passed straight to BorderBeam rather than
+   * letting it use theme="auto": auto reads prefers-color-scheme, but this app
+   * sets html[data-theme] explicitly and its :root is dark regardless of the OS,
+   * so auto would disagree with what is actually on screen.
+   */
+  theme: "dark" | "light";
   modelLabel: string;
   attach: string | null;
   onAttach: (url: string | null) => void;
@@ -86,6 +97,7 @@ export default function Composer({
   onSend,
   onStop,
   busy,
+  theme,
   modelLabel,
   attach,
   onAttach,
@@ -198,6 +210,43 @@ export default function Composer({
   const [listening, setListening] = useState(false);
   const startValRef = useRef("");
 
+  /*
+    A second capture, on purpose.
+
+    The transcription above runs on the Web Speech API, which gives no audio at
+    all — no stream, no level — so there is nothing for a sound-reactive glow
+    to read. useMicrophone opens its own getUserMedia stream purely so
+    VoiceBeam has something to analyse.
+
+    Consequences worth knowing: the browser may ask for the microphone a second
+    time (usually re-using the existing grant), and on platforms where
+    SpeechRecognition captures the mic itself there are briefly two live tracks.
+    Both are started and stopped together from toggleMic, and the glow is
+    decorative — if the capture is denied or unsupported, dictation still works
+    and the beam simply stays at its idle level.
+  */
+  const mic = useMicrophone();
+
+  /*
+    MetalFx picks between its shader root and a plain-child fallback by probing
+    for WebGL2 *during render* — it holds the result in `xo(() => mr(), [])`,
+    and `mr()` returns false when there is no document. Next.js prerenders this
+    client component, so the server would ship `metal-fx-fallback` (one div,
+    just the child) while the browser rendered `metal-fx-root` (canvas plus
+    three layer divs). Different markup on both sides of hydration.
+
+    Gating on mount means server and first client render agree on the plain
+    button, and the shader attaches on the next tick.
+  */
+  const [metalReady, setMetalReady] = useState(false);
+  useEffect(() => setMetalReady(true), []);
+
+  // Cursor dent on the metal send button — the documented pairing for
+  // variant="circle". Cheap and entirely optional; drop this line and the ref
+  // if you would rather the surface stayed rigid.
+  const sendRef = useRef<HTMLDivElement | null>(null);
+  useMetalBend(sendRef);
+
   const getRecognizer = () => {
     if (recRef.current) return recRef.current;
     const w = window as any;
@@ -227,6 +276,7 @@ export default function Composer({
     if (!rec) return;
     if (listening) {
       setListening(false);
+      mic.stop();
       try {
         rec.stop();
       } catch {}
@@ -234,10 +284,14 @@ export default function Composer({
     }
     startValRef.current = value;
     setListening(true);
+    // Deliberately not awaited: this only feeds the glow, and recognition must
+    // start inside this gesture without waiting on a permission round-trip.
+    void mic.start();
     try {
       rec.start();
     } catch {
       setListening(false);
+      mic.stop();
     }
   };
 
@@ -287,6 +341,36 @@ export default function Composer({
     bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
   const canSend = !busy && !imgBusy && !filesBusy && (value.trim() !== "" || !!attach || files.length > 0);
+
+  /*
+    Defined once and used in two places: bare on the server / first render, and
+    inside MetalFx once mounted. MetalFx takes exactly one child node, and it
+    paints its canvas over this button's own surface — normalizeHostStyles
+    (default on) forces the child's background transparent, which is what lets
+    the metal BE the button rather than sit on top of a grey disc.
+
+    theme is the app's own Settings theme, not "auto": auto resolves through
+    prefers-color-scheme, but this app drives html[data-theme] explicitly.
+  */
+  const sendBtn = (
+    <button type="button" className="send" onClick={onSend} title="Send" aria-label="Send message">
+      <SendIcon />
+    </button>
+  );
+  const sendControl = metalReady ? (
+    <MetalFx
+      ref={sendRef}
+      className="send-metal"
+      preset="chromatic"
+      variant="circle"
+      innerShadow
+      theme={theme}
+    >
+      {sendBtn}
+    </MetalFx>
+  ) : (
+    sendBtn
+  );
 
   return (
     <div className="composer-wrap">
@@ -498,8 +582,107 @@ export default function Composer({
           </div>
         ) : null}
 
-        <div className="field">
+        {/*
+          BorderBeam's root IS the field rather than wrapping it, so no extra div
+          lands between .composer and .field. It paints onto ::before/::after
+          pseudo-elements, so the existing flex children are laid out as before.
+
+          borderRadius is passed rather than auto-detected: auto-detection reads
+          the *first child*, which here is .tools and carries no radius, so it
+          would fall back to the preset default instead of .field's own 23px.
+
+          theme is the app's own Settings theme, not theme="auto": auto reads
+          prefers-color-scheme, but this app sets html[data-theme] explicitly and
+          its :root is dark whatever the OS says, so auto would disagree with
+          what is actually on screen.
+        */}
+        <VoiceBeam
+          className="field-voice"
+          type="default"
+          stream={mic.stream}
+          theme={theme}
+          /*
+            `active` off means "fades out AND stops the audio analysis", so
+            gating it on `listening` also means no AnalyserNode is running at
+            rest. `paused` would instead hold the last frame, which is not what
+            we want between turns.
+
+            borderRadius is passed rather than auto-detected: detection reads the
+            first child's computed radius, which here is BorderBeam's injected
+            stylesheet rather than a class we own, and 23 is simply .field's own
+            value.
+          */
+          active={listening}
+          borderRadius={23}
+          strength={0.85}
+        >
+          <BorderBeam
+          className="field"
+          size="md"
+          colorVariant="colorful"
+          strength={0.7}
+          theme={theme}
+          borderRadius={23}
+          /*
+            `active` is deliberately not passed. Every layer's opacity is
+            multiplied by a --beam-opacity custom property whose initial value is
+            0, and it only reaches 1 via the fade-in keyframes that run under
+            [data-beam][data-active]. Gating it on `busy` therefore made the beam
+            render at zero opacity whenever the app was idle — invisible, with
+            nothing for `theme` to affect. The library defaults active to true,
+            so omitting it keeps the beam on. Add active={busy} back to tie it to
+            generation.
+          */
+          /*
+            BorderBeam's generated stylesheet puts `overflow: hidden` on its root.
+            That would clip .tools-menu and .tpl-menu, which are absolutely
+            positioned at `bottom: calc(100% + 8px)` and so render *above* this
+            box. Inline style beats the injected rule, and the library spreads the
+            caller's style first, so this one survives its own CSS custom
+            properties being merged over it.
+          */
+          style={{ overflow: "visible" }}
+        >
           <div className="tools">
+            {/*
+              The goo is scoped to the + button alone. liquid-gooey builds its SVG
+              filter region from the GROUP's own box (x/y -pad, w/h size + pad*2),
+              and the tools panel is a ~400px popover anchored above a 32px button
+              group — so it sits outside that region and the silhouette gets cut
+              off part-way through the filter, which reads as a dirty smear rather
+              than liquid. Keeping the group to the button alone keeps every blob
+              inside its region, so the morph is clean.
+
+              The panel below stays an ordinary popover.
+            */}
+            <Liquid
+              className="tools-liquid"
+              blur={6}
+              contrast={18}
+              fill={toolsOpen ? "var(--panel2)" : "transparent"}
+              shadow={toolsOpen ? "0 3px 10px rgba(0, 0, 0, 0.35)" : undefined}
+            >
+              <Liquid.Item
+                className="tools-btn-item"
+                morph={{ shape: true, bounce: 0.55 }}
+                style={{ display: "flex" }}
+              >
+                <button
+                  type="button"
+                  className={`plus-btn${toolsOpen ? " on" : ""}`}
+                  title="Add tools"
+                  aria-label="Add tools"
+                  aria-haspopup="menu"
+                  aria-expanded={toolsOpen}
+                  onClick={() => {
+                    setToolsOpen((v) => !v);
+                    setTplOpen(false);
+                  }}
+                >
+                  <PlusIcon />
+                </button>
+              </Liquid.Item>
+            </Liquid>
             <input
               ref={fileRef}
               type="file"
@@ -533,20 +716,6 @@ export default function Composer({
                 e.target.value = "";
               }}
             />
-            <button
-              type="button"
-              className={`plus-btn${toolsOpen ? " on" : ""}`}
-              title="Add tools"
-              aria-label="Add tools"
-              aria-haspopup="menu"
-              aria-expanded={toolsOpen}
-              onClick={() => {
-                setToolsOpen((v) => !v);
-                setTplOpen(false);
-              }}
-            >
-              <PlusIcon />
-            </button>
             {toolsOpen ? (
               <>
                 <div className="ratio-backdrop" onClick={() => setToolsOpen(false)} />
@@ -845,17 +1014,10 @@ export default function Composer({
               <StopIcon />
             </button>
           ) : canSend ? (
-            <button
-              type="button"
-              className="send"
-              onClick={onSend}
-              title="Send"
-              aria-label="Send message"
-            >
-              <SendIcon />
-            </button>
+            sendControl
           ) : null}
-        </div>
+          </BorderBeam>
+        </VoiceBeam>
         <p className="hint">
           {listening ? <b>Listening… speak now.</b> : null}
           {listening ? " " : null}

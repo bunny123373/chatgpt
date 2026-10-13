@@ -210,7 +210,7 @@ export async function POST(req: Request) {
    * Decide what "search" means for this request.
    *
    * It used to mean exactly one thing: POST {baseUrl}/search on xKiro. That endpoint
-   * does not exist on OpenRouter or Cloudflare, so on any other provider the toggle
+   * does not exist on other OpenAI-compatible providers, so on any of them the toggle
    * was a no-op producing an empty string, which reads as "searched and found
    * nothing" rather than "search never ran". A configured search provider is now
    * used first, because that is what makes the toggle mean the same thing whatever

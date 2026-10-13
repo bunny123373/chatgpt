@@ -221,13 +221,6 @@ export interface Settings {
    * provider's fixed endpoint and nowhere else.
    */
   searchApiKey: string;
-  /**
-   * Image model id, for providers that let you choose one.
-   *
-   * Only meaningful on the Cloudflare path, where each model is a separate
-   * endpoint. Ignored by providers with a single fixed image model.
-   */
-  imageModel: string;
   /** Voice id used by the 🔊 read-aloud button (xKiro TTS, see GET /v1/audio/voices). */
   ttsVoice: string;
   /** Read-aloud speed multiplier (0.5–2, xKiro `speed`). */
@@ -340,7 +333,6 @@ export const DEFAULT_SETTINGS: Settings = {
   searchApiKey: "",
   tools: false,
   imageRatio: "1:1",
-  imageModel: "",
   bubbleColor: "default",
   ttsVoice: "american-female",
   ttsSpeed: 1,

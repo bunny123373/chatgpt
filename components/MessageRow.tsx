@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, useState } from "react";
+import { ThinkingOrb } from "thinking-orbs";
 import { renderMarkdown } from "@/lib/markdown";
 import ImageCard from "./ImageCard";
 import {
@@ -206,10 +207,8 @@ function MessageRow({
           {msg.content ? msg.content : null}
         </div>
       ) : busy && empty ? (
-        <div className="typing" aria-label="Assistant is typing">
-          <i />
-          <i />
-          <i />
+        <div className="typing">
+          <ThinkingOrb state="searching" size={20} aria-label="Assistant is thinking" />
         </div>
       ) : (
         <div className="content">
