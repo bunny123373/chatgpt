@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Backdrop from "./Backdrop";
+import CursorRingField from "./originkit/ui/cursor-ring-field";
 import { MODELS } from "@/lib/types";
 import { SITE_NAME } from "@/lib/site";
 import { useAuth } from "@/lib/useAuth";
@@ -230,8 +230,33 @@ export default function Landing() {
 
   return (
     <div className="landing">
-      {/* Shared animated backdrop; see components/Backdrop.tsx. */}
-      <Backdrop variant="landing" />
+      {/*
+        Cursor-reactive particle field, in place of the five drifting blobs.
+
+        Reuses .land-bg for positioning — absolute, z-index -1, overflow hidden,
+        and the mask that fades it out below the fold so the page does not turn
+        into wallpaper. pointer-events stays none: the component listens on
+        window for pointermove and derives the cursor position from
+        getBoundingClientRect, so it still tracks correctly while inert.
+
+        density is the component's own authored default of 300 scaled down to
+        120. 300 works out to roughly 49k GL_POINTS drawn every frame plus a
+        ping-pong FBO simulation pass — fine on a desktop GPU, punishing on a
+        phone. 120 lands around 6k, which still reads as a dense field.
+
+        background is transparent so the points composite over --bg directly
+        and follow the light/dark theme, rather than painting the component's
+        own #04050a rectangle.
+
+        Colours are the five the blobs used, centre first — MAX_COLORS is 5.
+      */}
+      <div className="land-bg" aria-hidden="true">
+        <CursorRingField
+          density={120}
+          background="transparent"
+          colors={["#6366f1", "#a855f7", "#22d3ee", "#ec4899", "#3b82f6"]}
+        />
+      </div>
 
       <header className="land-bar">
         <div className="land-brand">
